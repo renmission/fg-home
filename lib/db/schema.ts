@@ -1,10 +1,4 @@
-import {
-  pgTable,
-  text,
-  timestamp,
-  integer,
-  primaryKey,
-} from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, primaryKey } from "drizzle-orm/pg-core";
 import type { AdapterAccount } from "next-auth/adapters";
 
 // --- Auth.js (NextAuth) tables ---
@@ -81,3 +75,46 @@ export const userRoles = pgTable(
     pk: primaryKey({ columns: [t.userId, t.roleId] }),
   })
 );
+
+// --- Inventory (Phase 2) ---
+
+export const products = pgTable("product", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  sku: text("sku").notNull().unique(),
+  category: text("category"),
+  unit: text("unit").notNull(), // e.g. "pcs", "kg", "bag"
+  reorderLevel: integer("reorder_level").notNull().default(0),
+  archived: integer("archived").notNull().default(0), // 0 = active, 1 = archived
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+/** Single location for MVP: one row per product with current quantity. */
+export const stockLevels = pgTable("stock_level", {
+  productId: text("product_id")
+    .primaryKey()
+    .references(() => products.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull().default(0),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const stockMovementTypes = ["in", "out", "adjustment"] as const;
+export type StockMovementType = (typeof stockMovementTypes)[number];
+
+export const stockMovements = pgTable("stock_movement", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  productId: text("product_id")
+    .notNull()
+    .references(() => products.id, { onDelete: "cascade" }),
+  type: text("type").$type<StockMovementType>().notNull(),
+  quantity: integer("quantity").notNull(), // positive for in/adjustment up, negative for out
+  reference: text("reference"), // optional ref (e.g. PO number, order id)
+  note: text("note"),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});

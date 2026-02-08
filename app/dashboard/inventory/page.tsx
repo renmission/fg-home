@@ -1,10 +1,14 @@
-export default function InventoryPage() {
+import { auth } from "@/lib/auth";
+import { InventoryDashboard } from "@/components/inventory/inventory-dashboard";
+import type { SessionUser } from "@/lib/auth/permissions";
+
+export default async function InventoryPage() {
+  const session = await auth();
+  const user = (session?.user ?? null) as SessionUser | null;
+
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Inventory</h1>
-      <p className="mt-2 text-muted-foreground">
-        Product and stock management (Phase 2).
-      </p>
+      <InventoryDashboard user={user} />
     </div>
   );
 }

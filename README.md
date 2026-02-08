@@ -41,7 +41,17 @@ pnpm start
 
 # Lint
 pnpm lint
+
+# Type check
+pnpm typecheck
+
+# Format (Prettier)
+pnpm format
 ```
+
+### Pre-commit (Husky)
+
+On `git commit`, the pre-commit hook runs in order: **Prettier** (staged files) → **TypeScript** (`tsc --noEmit`) → **ESLint** → **Build**. Install deps with `pnpm install` so Husky is set up. Skip with `git commit -n` or `HUSKY=0 git commit`.
 
 ## Tech stack
 

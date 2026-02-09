@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import type { NavItem } from "@/components/dashboard/dashboard-nav";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import type { UserMenuUser } from "@/components/dashboard/user-menu";
-import { IconBell } from "@/components/dashboard/sidebar-icons";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -154,17 +155,11 @@ export function DashboardShell({
           </Link>
         </div>
         <div className="flex items-center gap-1">
-          <ThemeToggle />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10"
-            aria-label="Notifications"
-          >
-            <IconBell />
-          </Button>
-          <UserMenu user={user} />
+          <ThemeToggle className="hidden md:inline-flex" />
+          <NotificationBell />
+          <div className="hidden md:block">
+            <UserMenu user={user} />
+          </div>
         </div>
       </header>
 
@@ -224,6 +219,58 @@ export function DashboardShell({
             onNavigate={handleNavNavigate}
             collapsed={!sidebarOpen}
           />
+
+          {/* Mobile: Theme toggle and user menu */}
+          <div className="mt-auto md:hidden">
+            <div className="border-t border-border" />
+            <div className="flex flex-col gap-1 px-3 py-2">
+              <ThemeToggle className="w-full justify-start" />
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                {user.image ? (
+                  <img
+                    src={user.image}
+                    alt=""
+                    className="h-8 w-8 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                    {user.name
+                      ? user.name
+                          .trim()
+                          .split(/\s+/)
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : user.email
+                        ? user.email.slice(0, 2).toUpperCase()
+                        : "?"}
+                  </span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user.name || user.email || "User"}
+                  </p>
+                  {user.email && user.name && (
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  )}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  signOut({ callbackUrl: "/login" });
+                  closeSidebar();
+                }}
+              >
+                Sign out
+              </Button>
+            </div>
+          </div>
+
           <div
             className={cn(
               "mt-auto shrink-0 border-t border-border px-3 py-3 text-center text-xs text-muted-foreground",

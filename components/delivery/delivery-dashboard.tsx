@@ -191,6 +191,11 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
         sortBy: isDeliveryStaffOnly ? "createdAt" : sortBy,
         sortOrder: isDeliveryStaffOnly ? "asc" : sortOrder,
       }),
+    // Auto-refresh for all users to see new deliveries and status updates
+    // Poll every 20 seconds (more frequent than notifications since deliveries are time-sensitive)
+    refetchInterval: 20000,
+    // Also refetch when window regains focus
+    refetchOnWindowFocus: true,
   });
 
   let deliveries = deliveriesData?.data ?? [];
@@ -314,16 +319,6 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
           </div>
         )}
 
-        {isDeliveryStaffOnly && deliveries.length === 0 && !isLoading && (
-          <Card>
-            <CardContent className="p-8">
-              <div className="text-center text-muted-foreground">
-                <p className="text-sm font-medium mb-1">No pending deliveries</p>
-                <p className="text-xs">All assigned deliveries have been completed.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
         {isLoading ? (
           <div className="text-center text-muted-foreground py-12">
             <p className="text-sm">Loading…</p>
@@ -332,7 +327,14 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
           <Card>
             <CardContent className="p-8">
               <div className="text-center text-muted-foreground">
-                <p className="text-sm">No deliveries found.</p>
+                {isDeliveryStaffOnly ? (
+                  <>
+                    <p className="text-sm font-medium mb-1">No pending deliveries</p>
+                    <p className="text-xs">All assigned deliveries have been completed.</p>
+                  </>
+                ) : (
+                  <p className="text-sm">No deliveries found.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -362,17 +364,6 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
 
       {/* Desktop Table View */}
       <div className="hidden sm:block">
-        {isDeliveryStaffOnly && deliveries.length === 0 && !isLoading && (
-          <Card className="mb-4">
-            <CardContent className="p-8">
-              <div className="text-center text-muted-foreground">
-                <p className="text-sm font-medium mb-1">No pending deliveries</p>
-                <p className="text-xs">All assigned deliveries have been completed.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader className="pb-4 p-4 sm:p-6">
             <div className="space-y-3">
@@ -497,7 +488,16 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
                             colSpan={canWrite || canUpdateStatus ? 8 : 7}
                             className="text-center text-muted-foreground py-8"
                           >
-                            No deliveries found.
+                            {isDeliveryStaffOnly ? (
+                              <div>
+                                <p className="text-sm font-medium mb-1">No pending deliveries</p>
+                                <p className="text-xs">
+                                  All assigned deliveries have been completed.
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-sm">No deliveries found.</p>
+                            )}
                           </TableCell>
                         </TableRow>
                       ) : (

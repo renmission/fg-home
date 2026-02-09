@@ -7,6 +7,7 @@ import { withRouteErrorHandling } from "@/lib/errors";
 import { deliveryStatusUpdateSchema } from "@/schemas/delivery";
 import { eq } from "drizzle-orm";
 import { STATUS_ORDER, getNextStatus } from "@/lib/delivery-workflow";
+import { createDeliveryStatusNotification } from "@/lib/notifications";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,7 +22,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // Check if delivery exists
     const [delivery] = await db
-      .select({ id: deliveries.id, status: deliveries.status })
+      .select({
+        id: deliveries.id,
+        status: deliveries.status,
+        trackingNumber: deliveries.trackingNumber,
+        assignedToUserId: deliveries.assignedToUserId,
+        createdById: deliveries.createdById,
+      })
       .from(deliveries)
       .where(eq(deliveries.id, id))
       .limit(1);
@@ -86,6 +93,29 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (!statusUpdate) {
       return Response.json({ error: "Failed to create status update" }, { status: 500 });
+    }
+
+    // Create notifications for both creator and assigned staff
+    const userIdsToNotify = new Set<string>();
+
+    // Add creator if exists and is not empty
+    if (delivery.createdById && delivery.createdById.trim() !== "") {
+      userIdsToNotify.add(delivery.createdById);
+    }
+
+    // Add assigned staff if exists and is not empty
+    if (delivery.assignedToUserId && delivery.assignedToUserId.trim() !== "") {
+      userIdsToNotify.add(delivery.assignedToUserId);
+    }
+
+    // Notify all relevant users
+    for (const userId of userIdsToNotify) {
+      try {
+        await createDeliveryStatusNotification(userId, id, delivery.trackingNumber, status);
+      } catch (error) {
+        // Log error but don't fail the request
+        console.error(`Failed to create notification for user ${userId}:`, error);
+      }
     }
 
     return Response.json({ data: statusUpdate }, { status: 201 });

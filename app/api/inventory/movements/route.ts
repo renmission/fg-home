@@ -1,12 +1,21 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { products, stockLevels, stockMovements, type StockMovementType } from "@/lib/db/schema";
+import {
+  products,
+  stockLevels,
+  stockMovements,
+  type StockMovementType,
+  users,
+  userRoles,
+  roles,
+} from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
-import { PERMISSIONS } from "@/lib/auth/permissions";
+import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { movementsListQuerySchema } from "@/schemas/inventory";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { createNotification } from "@/lib/notifications";
 
 const movementBodySchema = z
   .object({
@@ -116,7 +125,7 @@ export async function POST(req: NextRequest) {
     const delta = type === "out" ? -quantity : type === "in" ? quantity : quantity;
 
     const [product] = await db
-      .select({ id: products.id })
+      .select({ id: products.id, name: products.name, reorderLevel: products.reorderLevel })
       .from(products)
       .where(eq(products.id, productId))
       .limit(1);
@@ -165,6 +174,58 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date(),
         },
       });
+
+    // Check for low stock and notify inventory managers
+    if (product.reorderLevel > 0 && newQty <= product.reorderLevel) {
+      // Get inventory manager role ID
+      const [inventoryManagerRole] = await db
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, ROLES.INVENTORY_MANAGER))
+        .limit(1);
+
+      if (inventoryManagerRole) {
+        // Get all users with inventory manager role
+        const inventoryManagers = await db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .where(eq(userRoles.roleId, inventoryManagerRole.id));
+
+        // Also get admin users (they should also receive low stock alerts)
+        const [adminRole] = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(eq(roles.name, ROLES.ADMIN))
+          .limit(1);
+
+        let adminUserIds: string[] = [];
+        if (adminRole) {
+          const admins = await db
+            .select({ userId: userRoles.userId })
+            .from(userRoles)
+            .where(eq(userRoles.roleId, adminRole.id));
+          adminUserIds = admins.map((a) => a.userId).filter(Boolean) as string[];
+        }
+
+        const allUserIds = [
+          ...inventoryManagers.map((m) => m.userId).filter(Boolean),
+          ...adminUserIds,
+        ];
+
+        // Create notifications for each user
+        for (const userId of allUserIds) {
+          if (userId) {
+            await createNotification(
+              userId,
+              "low_stock",
+              `Low Stock Alert: ${product.name}`,
+              `${product.name} stock is at ${newQty} (reorder level: ${product.reorderLevel})`,
+              `/dashboard/inventory?product=${productId}`
+            );
+          }
+        }
+      }
+    }
 
     return Response.json({ data: movement }, { status: 201 });
   });

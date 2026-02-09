@@ -6,10 +6,9 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
-      <p className="mt-2 text-muted-foreground">
-        Welcome back, {name}. Use the sidebar to open Inventory, Payroll, or
-        Deliveries.
+      <h1 className="text-xl font-semibold sm:text-2xl">Dashboard</h1>
+      <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+        Welcome back, {name}. Use the menu to open Inventory, Payroll, or Deliveries.
       </p>
     </div>
   );

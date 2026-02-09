@@ -4,7 +4,7 @@ import { products, stockLevels, stockMovements, type StockMovementType } from "@
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { movementsListQuerySchema } from "@/schemas/inventory";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const movementBodySchema = z
@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
   if (forbidden) return forbidden;
 
   const parsed = movementsListQuerySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
-  const q = parsed.success ? parsed.data : { page: 1, limit: 20 };
+  const q = parsed.success
+    ? parsed.data
+    : { page: 1, limit: 20, sortBy: "createdAt" as const, sortOrder: "desc" as const };
 
   const page = q.page ?? 1;
   const limit = q.limit ?? 20;
@@ -39,7 +41,29 @@ export async function GET(req: NextRequest) {
   const conditions = [];
   if (q.productId) conditions.push(eq(stockMovements.productId, q.productId));
   if (q.type) conditions.push(eq(stockMovements.type, q.type as StockMovementType));
+  if (q.search?.trim()) {
+    conditions.push(
+      or(ilike(products.name, `%${q.search.trim()}%`), ilike(products.sku, `%${q.search.trim()}%`))!
+    );
+  }
   const where = conditions.length ? and(...conditions) : undefined;
+
+  const orderBy =
+    q.sortBy === "productName"
+      ? q.sortOrder === "desc"
+        ? desc(products.name)
+        : asc(products.name)
+      : q.sortBy === "type"
+        ? q.sortOrder === "desc"
+          ? desc(stockMovements.type)
+          : asc(stockMovements.type)
+        : q.sortBy === "quantity"
+          ? q.sortOrder === "desc"
+            ? desc(stockMovements.quantity)
+            : asc(stockMovements.quantity)
+          : q.sortOrder === "desc"
+            ? desc(stockMovements.createdAt)
+            : asc(stockMovements.createdAt);
 
   const [rows, countResult] = await Promise.all([
     db
@@ -57,12 +81,13 @@ export async function GET(req: NextRequest) {
       .from(stockMovements)
       .innerJoin(products, eq(stockMovements.productId, products.id))
       .where(where)
-      .orderBy(desc(stockMovements.createdAt))
+      .orderBy(orderBy)
       .limit(limit)
       .offset(offset),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(stockMovements)
+      .innerJoin(products, eq(stockMovements.productId, products.id))
       .where(where),
   ]);
 

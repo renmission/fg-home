@@ -35,7 +35,9 @@ export const productsListQuerySchema = z.object({
   archived: z
     .string()
     .optional()
-    .transform((v) => (v === "1" ? true : v === "0" ? false : undefined)),
+    .transform((v) =>
+      v === "1" || v === "true" ? true : v === "0" || v === "false" ? false : undefined
+    ),
   sortBy: z
     .enum(["name", "sku", "category", "reorderLevel", "createdAt"])
     .optional()
@@ -50,6 +52,9 @@ export const movementsListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   productId: z.string().uuid().optional(),
   type: movementTypeSchema.optional(),
+  search: z.string().optional(),
+  sortBy: z.enum(["createdAt", "type", "quantity", "productName"]).optional().default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
 export type MovementsListQuery = z.infer<typeof movementsListQuerySchema>;

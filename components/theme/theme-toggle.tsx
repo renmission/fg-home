@@ -64,15 +64,18 @@ export function ThemeToggle({ className }: { className?: string }) {
     setIsDark(next === "dark");
   };
 
+  const isFullWidth = className?.includes("justify-start") || className?.includes("w-full");
+
   if (!mounted) {
     return (
       <Button
         variant="ghost"
-        size="icon"
-        className={cn("h-10 w-10", className)}
+        size={isFullWidth ? "default" : "icon"}
+        className={cn(isFullWidth ? "h-10 w-full justify-start gap-2" : "h-10 w-10", className)}
         aria-label="Toggle theme"
       >
         <span className="h-5 w-5" />
+        {isFullWidth && <span className="text-sm">Toggle theme</span>}
       </Button>
     );
   }
@@ -81,12 +84,13 @@ export function ThemeToggle({ className }: { className?: string }) {
     <Button
       type="button"
       variant="ghost"
-      size="icon"
-      className={cn("h-10 w-10", className)}
+      size={isFullWidth ? "default" : "icon"}
+      className={cn(isFullWidth ? "h-10 w-full justify-start gap-2" : "h-10 w-10", className)}
       onClick={toggle}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}
+      {isFullWidth && <span className="text-sm">{isDark ? "Light mode" : "Dark mode"}</span>}
     </Button>
   );
 }

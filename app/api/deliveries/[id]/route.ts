@@ -6,6 +6,7 @@ import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { deliverySchema } from "@/schemas/delivery";
 import { eq, inArray, and } from "drizzle-orm";
+import { createDeliveryAssignmentNotification } from "@/lib/notifications";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -117,7 +118,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
 
     const [existing] = await db
-      .select({ status: deliveries.status })
+      .select({
+        status: deliveries.status,
+        assignedToUserId: deliveries.assignedToUserId,
+        trackingNumber: deliveries.trackingNumber,
+        customerName: deliveries.customerName,
+      })
       .from(deliveries)
       .where(eq(deliveries.id, id))
       .limit(1);
@@ -162,6 +168,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         status: parsed.data.status,
         updatedById: user.id,
       });
+    }
+
+    // If assignment changed, notify the newly assigned staff member
+    if (
+      parsed.data.assignedToUserId &&
+      parsed.data.assignedToUserId !== existing.assignedToUserId &&
+      parsed.data.assignedToUserId !== user.id
+    ) {
+      await createDeliveryAssignmentNotification(
+        parsed.data.assignedToUserId,
+        id,
+        updated.trackingNumber,
+        updated.customerName || null
+      );
     }
 
     return Response.json({ data: updated });

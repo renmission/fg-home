@@ -7,6 +7,7 @@ import { withRouteErrorHandling } from "@/lib/errors";
 import { deliveriesListQuerySchema, deliverySchema } from "@/schemas/delivery";
 import { and, asc, desc, eq, ilike, or, sql, inArray } from "drizzle-orm";
 import { generateTrackingNumber, generateOrderReference } from "@/lib/delivery-utils";
+import { createDeliveryAssignmentNotification } from "@/lib/notifications";
 
 export async function GET(req: NextRequest) {
   const { user, response } = await getSessionOr401();
@@ -226,6 +227,16 @@ export async function POST(req: NextRequest) {
       status: delivery.status,
       updatedById: user.id,
     });
+
+    // Notify assigned staff member about the new delivery assignment
+    if (assignedToUserId && assignedToUserId !== user.id) {
+      await createDeliveryAssignmentNotification(
+        assignedToUserId,
+        delivery.id,
+        finalTrackingNumber,
+        customerName || null
+      );
+    }
 
     return Response.json({ data: delivery }, { status: 201 });
   });

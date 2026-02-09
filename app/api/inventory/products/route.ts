@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { products, stockLevels } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import { withRouteErrorHandling } from "@/lib/errors";
 import { productsListQuerySchema, productSchema } from "@/schemas/inventory";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 
@@ -100,41 +101,43 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, response } = await getSessionOr401();
-  if (response) return response;
-  const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
-  if (forbidden) return forbidden;
+  return withRouteErrorHandling(async () => {
+    const { user, response } = await getSessionOr401();
+    if (response) return response;
+    const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
+    if (forbidden) return forbidden;
 
-  const body = await req.json();
-  const parsed = productSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
+    const body = await req.json();
+    const parsed = productSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
 
-  const { name, sku, category, unit, reorderLevel, archived } = parsed.data;
-  const [product] = await db
-    .insert(products)
-    .values({
-      name,
-      sku: sku.trim(),
-      category: category?.trim() || null,
-      unit: unit.trim(),
-      reorderLevel: reorderLevel ?? 0,
-      archived: archived ?? 0,
-    })
-    .returning();
+    const { name, sku, category, unit, reorderLevel, archived } = parsed.data;
+    const [product] = await db
+      .insert(products)
+      .values({
+        name,
+        sku: sku.trim(),
+        category: category?.trim() || null,
+        unit: unit.trim(),
+        reorderLevel: reorderLevel ?? 0,
+        archived: archived ?? 0,
+      })
+      .returning();
 
-  if (!product) {
-    return Response.json({ error: "Failed to create product" }, { status: 500 });
-  }
+    if (!product) {
+      return Response.json({ error: "Failed to create product" }, { status: 500 });
+    }
 
-  await db.insert(stockLevels).values({
-    productId: product.id,
-    quantity: 0,
+    await db.insert(stockLevels).values({
+      productId: product.id,
+      quantity: 0,
+    });
+
+    return Response.json({ data: product }, { status: 201 });
   });
-
-  return Response.json({ data: product }, { status: 201 });
 }

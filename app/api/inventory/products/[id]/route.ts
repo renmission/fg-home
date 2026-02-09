@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { products, stockLevels } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import { withRouteErrorHandling } from "@/lib/errors";
 import { productSchema } from "@/schemas/inventory";
 import { eq } from "drizzle-orm";
 
@@ -47,58 +48,62 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
-  const { user, response } = await getSessionOr401();
-  if (response) return response;
-  const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
-  if (forbidden) return forbidden;
+  return withRouteErrorHandling(async () => {
+    const { user, response } = await getSessionOr401();
+    if (response) return response;
+    const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
+    if (forbidden) return forbidden;
 
-  const { id } = await context.params;
-  const body = await req.json();
-  const parsed = productSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
+    const { id } = await context.params;
+    const body = await req.json();
+    const parsed = productSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
 
-  const [updated] = await db
-    .update(products)
-    .set({
-      name: parsed.data.name,
-      sku: parsed.data.sku.trim(),
-      category: parsed.data.category?.trim() || null,
-      unit: parsed.data.unit.trim(),
-      reorderLevel: parsed.data.reorderLevel ?? 0,
-      archived: parsed.data.archived ?? 0,
-      updatedAt: new Date(),
-    })
-    .where(eq(products.id, id))
-    .returning();
+    const [updated] = await db
+      .update(products)
+      .set({
+        name: parsed.data.name,
+        sku: parsed.data.sku.trim(),
+        category: parsed.data.category?.trim() || null,
+        unit: parsed.data.unit.trim(),
+        reorderLevel: parsed.data.reorderLevel ?? 0,
+        archived: parsed.data.archived ?? 0,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id))
+      .returning();
 
-  if (!updated) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
+    if (!updated) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
 
-  return Response.json({ data: updated });
+    return Response.json({ data: updated });
+  });
 }
 
 export async function DELETE(_req: NextRequest, context: RouteContext) {
-  const { user, response } = await getSessionOr401();
-  if (response) return response;
-  const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
-  if (forbidden) return forbidden;
+  return withRouteErrorHandling(async () => {
+    const { user, response } = await getSessionOr401();
+    if (response) return response;
+    const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
+    if (forbidden) return forbidden;
 
-  const { id } = await context.params;
-  const [updated] = await db
-    .update(products)
-    .set({ archived: 1, updatedAt: new Date() })
-    .where(eq(products.id, id))
-    .returning();
+    const { id } = await context.params;
+    const [updated] = await db
+      .update(products)
+      .set({ archived: 1, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
 
-  if (!updated) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
+    if (!updated) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
 
-  return Response.json({ data: updated });
+    return Response.json({ data: updated });
+  });
 }

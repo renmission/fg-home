@@ -1,3 +1,4 @@
+import { parseApiResponse } from "@/lib/errors";
 import type { MovementsListQuery, ProductFormValues, ProductsListQuery } from "@/schemas/inventory";
 
 export type ProductListItem = {
@@ -55,14 +56,12 @@ export async function fetchProducts(
 ): Promise<ProductsListResponse> {
   const qs = buildQueryString(query as Record<string, string | number | boolean | undefined>);
   const res = await fetch(`/api/inventory/products${qs}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return parseApiResponse<ProductsListResponse>(res, "Failed to load products");
 }
 
 export async function fetchProduct(id: string): Promise<{ data: ProductDetail }> {
   const res = await fetch(`/api/inventory/products/${id}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return parseApiResponse<{ data: ProductDetail }>(res, "Failed to load product");
 }
 
 export async function createProduct(body: ProductFormValues): Promise<{ data: unknown }> {
@@ -71,11 +70,7 @@ export async function createProduct(body: ProductFormValues): Promise<{ data: un
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to create product");
-  }
-  return res.json();
+  return parseApiResponse<{ data: unknown }>(res, "Failed to create product");
 }
 
 export async function updateProduct(
@@ -87,22 +82,12 @@ export async function updateProduct(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to update product");
-  }
-  return res.json();
+  return parseApiResponse<{ data: unknown }>(res, "Failed to update product");
 }
 
 export async function archiveProduct(id: string): Promise<{ data: unknown }> {
-  const res = await fetch(`/api/inventory/products/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to archive product");
-  }
-  return res.json();
+  const res = await fetch(`/api/inventory/products/${id}`, { method: "DELETE" });
+  return parseApiResponse<{ data: unknown }>(res, "Failed to archive product");
 }
 
 export async function fetchMovements(
@@ -110,8 +95,7 @@ export async function fetchMovements(
 ): Promise<MovementsListResponse> {
   const qs = buildQueryString(query as Record<string, string | number | boolean | undefined>);
   const res = await fetch(`/api/inventory/movements${qs}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return parseApiResponse<MovementsListResponse>(res, "Failed to load movements");
 }
 
 export async function createMovement(body: {
@@ -126,9 +110,5 @@ export async function createMovement(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to create movement");
-  }
-  return res.json();
+  return parseApiResponse<{ data: unknown }>(res, "Failed to create movement");
 }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { products, stockLevels, stockMovements, type StockMovementType } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import { withRouteErrorHandling } from "@/lib/errors";
 import { movementsListQuerySchema } from "@/schemas/inventory";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -96,73 +97,75 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, response } = await getSessionOr401();
-  if (response) return response;
-  const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
-  if (forbidden) return forbidden;
+  return withRouteErrorHandling(async () => {
+    const { user, response } = await getSessionOr401();
+    if (response) return response;
+    const forbidden = requirePermission(user, PERMISSIONS.INVENTORY_WRITE);
+    if (forbidden) return forbidden;
 
-  const body = await req.json();
-  const parsed = movementBodySchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
+    const body = await req.json();
+    const parsed = movementBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
 
-  const { productId, type, quantity, reference, note } = parsed.data;
-  const delta = type === "out" ? -quantity : type === "in" ? quantity : quantity;
+    const { productId, type, quantity, reference, note } = parsed.data;
+    const delta = type === "out" ? -quantity : type === "in" ? quantity : quantity;
 
-  const [product] = await db
-    .select({ id: products.id })
-    .from(products)
-    .where(eq(products.id, productId))
-    .limit(1);
-  if (!product) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
+    const [product] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+    if (!product) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
 
-  const [current] = await db
-    .select({ quantity: stockLevels.quantity })
-    .from(stockLevels)
-    .where(eq(stockLevels.productId, productId))
-    .limit(1);
+    const [current] = await db
+      .select({ quantity: stockLevels.quantity })
+      .from(stockLevels)
+      .where(eq(stockLevels.productId, productId))
+      .limit(1);
 
-  const newQty = (current?.quantity ?? 0) + delta;
-  if (newQty < 0) {
-    return Response.json({ error: "Insufficient stock for this movement" }, { status: 400 });
-  }
+    const newQty = (current?.quantity ?? 0) + delta;
+    if (newQty < 0) {
+      return Response.json({ error: "Insufficient stock for this movement" }, { status: 400 });
+    }
 
-  const [movement] = await db
-    .insert(stockMovements)
-    .values({
-      productId,
-      type: type as StockMovementType,
-      quantity: delta,
-      reference: reference?.trim() || null,
-      note: note?.trim() || null,
-      createdById: user?.id ?? null,
-    })
-    .returning();
+    const [movement] = await db
+      .insert(stockMovements)
+      .values({
+        productId,
+        type: type as StockMovementType,
+        quantity: delta,
+        reference: reference?.trim() || null,
+        note: note?.trim() || null,
+        createdById: user?.id ?? null,
+      })
+      .returning();
 
-  if (!movement) {
-    return Response.json({ error: "Failed to create movement" }, { status: 500 });
-  }
+    if (!movement) {
+      return Response.json({ error: "Failed to create movement" }, { status: 500 });
+    }
 
-  await db
-    .insert(stockLevels)
-    .values({
-      productId,
-      quantity: newQty,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: stockLevels.productId,
-      set: {
+    await db
+      .insert(stockLevels)
+      .values({
+        productId,
         quantity: newQty,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: stockLevels.productId,
+        set: {
+          quantity: newQty,
+          updatedAt: new Date(),
+        },
+      });
 
-  return Response.json({ data: movement }, { status: 201 });
+    return Response.json({ data: movement }, { status: 201 });
+  });
 }

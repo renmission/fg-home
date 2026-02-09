@@ -1,5 +1,6 @@
 "use client";
 
+import { getErrorMessage, parseApiResponse } from "@/lib/errors";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,8 @@ type Category = { id: string; name: string; createdAt: string };
 
 async function fetchCategories(): Promise<Category[]> {
   const res = await fetch(API);
-  if (!res.ok) throw new Error(await res.text());
-  const json = await res.json();
-  return json.data ?? [];
+  const json = await parseApiResponse<{ data: Category[] }>(res, "Failed to load categories");
+  return json?.data ?? [];
 }
 
 async function createCategory(name: string) {
@@ -32,11 +32,7 @@ async function createCategory(name: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: name.trim() }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to create");
-  }
-  return res.json();
+  return parseApiResponse<{ data: Category }>(res, "Failed to create category");
 }
 
 async function updateCategory(id: string, name: string) {
@@ -45,20 +41,12 @@ async function updateCategory(id: string, name: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: name.trim() }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to update");
-  }
-  return res.json();
+  return parseApiResponse<{ data: Category }>(res, "Failed to update category");
 }
 
 async function deleteCategory(id: string) {
   const res = await fetch(`${API}/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? "Failed to delete");
-  }
-  return res.json();
+  return parseApiResponse<{ data: unknown }>(res, "Failed to delete category");
 }
 
 export function SettingsCategoriesClient({ canWrite }: { canWrite: boolean }) {
@@ -210,14 +198,10 @@ export function SettingsCategoriesClient({ canWrite }: { canWrite: boolean }) {
                 </Table>
               </div>
               {(createMutation.isError || updateMutation.isError || deleteMutation.isError) && (
-                <p className="mt-2 text-sm text-destructive">
-                  {createMutation.error instanceof Error && createMutation.isError
-                    ? createMutation.error.message
-                    : updateMutation.error instanceof Error && updateMutation.isError
-                      ? updateMutation.error.message
-                      : deleteMutation.error instanceof Error && deleteMutation.isError
-                        ? deleteMutation.error.message
-                        : "Something went wrong"}
+                <p className="mt-2 text-sm text-destructive" role="alert">
+                  {getErrorMessage(
+                    createMutation.error ?? updateMutation.error ?? deleteMutation.error
+                  )}
                 </p>
               )}
             </>

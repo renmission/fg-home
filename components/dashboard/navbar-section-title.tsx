@@ -7,6 +7,8 @@ const SECTION_LABELS: Record<string, string> = {
   "/dashboard/inventory": "Inventory",
   "/dashboard/payroll": "Payroll",
   "/dashboard/deliveries": "Deliveries",
+  "/dashboard/settings/categories": "Categories",
+  "/dashboard/settings/units": "Units",
 };
 
 export function NavbarSectionTitle() {

@@ -51,10 +51,12 @@ const CloseIcon = () => (
 
 export function DashboardShell({
   navItems,
+  settingsNavItems = [],
   user,
   children,
 }: {
   navItems: NavItem[];
+  settingsNavItems?: NavItem[];
   user: UserMenuUser;
   children: React.ReactNode;
 }) {
@@ -147,7 +149,7 @@ export function DashboardShell({
               <CloseIcon />
             </Button>
           </div>
-          <DashboardNav items={navItems} onNavigate={closeMenu} />
+          <DashboardNav items={navItems} settingsItems={settingsNavItems} onNavigate={closeMenu} />
         </aside>
 
         {/* Main content — full width */}

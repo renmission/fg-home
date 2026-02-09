@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { users, userRoles, roles } from "@/lib/db/schema";
+import { users, userRoles, roles, departments } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
@@ -24,11 +24,16 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return Response.json({ error: "User not found" }, { status: 404 });
   }
 
-  const roleRows = await db
-    .select({ id: roles.id, name: roles.name })
-    .from(userRoles)
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .where(eq(userRoles.userId, id));
+  const [roleRows, departmentRow] = await Promise.all([
+    db
+      .select({ id: roles.id, name: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, id)),
+    row.departmentId
+      ? db.select().from(departments).where(eq(departments.id, row.departmentId)).limit(1)
+      : Promise.resolve([]),
+  ]);
   const roleIds = roleRows.map((r) => r.id);
   const roleNames = roleRows.map((r) => r.name).filter(Boolean);
 
@@ -38,6 +43,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       name: row.name,
       email: row.email,
       disabled: row.disabled,
+      departmentId: row.departmentId ?? null,
+      departmentName: departmentRow[0]?.name ?? null,
+      salaryRate: row.salaryRate ?? null,
       createdAt: row.createdAt?.toISOString() ?? null,
       roleIds,
       roles: roleNames,
@@ -72,6 +80,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       email: string;
       passwordHash: string;
       disabled: number;
+      departmentId: string | null;
+      salaryRate: string | null;
     }> = {};
 
     if (parsed.data.name !== undefined) updates.name = parsed.data.name.trim();
@@ -92,6 +102,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       updates.passwordHash = await bcrypt.hash(parsed.data.password, 10);
     }
     if (parsed.data.disabled !== undefined) updates.disabled = parsed.data.disabled;
+    if (parsed.data.departmentId !== undefined) {
+      updates.departmentId = parsed.data.departmentId || null; // Schema already transforms empty string to undefined
+    }
+    if (parsed.data.salaryRate !== undefined) {
+      updates.salaryRate = parsed.data.salaryRate || null; // Schema already transforms empty string to undefined
+    }
 
     if (Object.keys(updates).length > 0) {
       await db.update(users).set(updates).where(eq(users.id, id));
@@ -156,12 +172,21 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const roleIds = roleRows.map((r) => r.id);
     const roleNames = roleRows.map((r) => r.name).filter(Boolean);
 
+    const [departmentRow] = await Promise.all([
+      updated!.departmentId
+        ? db.select().from(departments).where(eq(departments.id, updated!.departmentId)).limit(1)
+        : Promise.resolve([]),
+    ]);
+
     return Response.json({
       data: {
         id: updated!.id,
         name: updated!.name,
         email: updated!.email,
         disabled: updated!.disabled,
+        departmentId: updated!.departmentId ?? null,
+        departmentName: departmentRow[0]?.name ?? null,
+        salaryRate: updated!.salaryRate ?? null,
         createdAt: updated!.createdAt?.toISOString() ?? null,
         roleIds,
         roles: roleNames,

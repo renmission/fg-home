@@ -74,7 +74,12 @@ export type PayslipListItem = {
   totalDeductions: string;
   netPay: string;
   status: string;
+  attendanceStatus: "on_time" | "late" | null;
+  attendanceSubmittedAt: string | null;
   createdAt: string;
+  payPeriodStartDate?: string;
+  payPeriodEndDate?: string;
+  payPeriodPayDate?: string;
 };
 
 export type PayslipsListResponse = {
@@ -86,6 +91,9 @@ export type PayslipsListResponse = {
 
 export type PayslipDetail = PayslipListItem & {
   updatedAt: string;
+  payPeriodStartDate?: string;
+  payPeriodEndDate?: string;
+  payPeriodPayDate?: string;
   earnings: { id: string; type: string; amount: string; description: string | null }[];
   deductions: { id: string; type: string; amount: string; description: string | null }[];
 };

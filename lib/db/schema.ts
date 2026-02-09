@@ -14,6 +14,8 @@ export const users = pgTable("user", {
   passwordHash: text("password_hash"),
   /** 0 = enabled, 1 = disabled (no delete for audit). */
   disabled: integer("disabled").notNull().default(0),
+  departmentId: text("department_id").references(() => departments.id, { onDelete: "set null" }),
+  salaryRate: decimal("salary_rate", { precision: 12, scale: 2 }), // Optional salary rate
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -152,6 +154,14 @@ export const inventoryUnits = pgTable("inventory_unit", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const departments = pgTable("department", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // --- Payroll (Phase 3) ---
 
 export const employees = pgTable("employee", {
@@ -248,5 +258,42 @@ export const deductions = pgTable("deduction", {
   type: text("type").$type<DeductionType>().notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// --- Attendance ---
+
+export const attendanceStatuses = ["on_time", "late"] as const;
+export type AttendanceStatus = (typeof attendanceStatuses)[number];
+
+/** Attendance submission for a pay period. One record per employee per pay period. */
+export const attendance = pgTable("attendance", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  payPeriodId: text("pay_period_id")
+    .notNull()
+    .references(() => payPeriods.id, { onDelete: "cascade" }),
+  submittedAt: timestamp("submitted_at", { mode: "date" }).notNull().defaultNow(),
+  submittedById: text("submitted_by_id").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").$type<AttendanceStatus>().notNull(), // on_time or late
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+/** Daily attendance records (present/absent per day). */
+export const attendanceDays = pgTable("attendance_day", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  attendanceId: text("attendance_id")
+    .notNull()
+    .references(() => attendance.id, { onDelete: "cascade" }),
+  date: date("date", { mode: "string" }).notNull(),
+  present: integer("present").notNull().default(1), // 1 = present, 0 = absent
+  hoursWorked: decimal("hours_worked", { precision: 5, scale: 2 }), // optional: hours worked (e.g. 8.0, 4.5)
+  notes: text("notes"), // optional notes
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

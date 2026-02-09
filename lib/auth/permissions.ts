@@ -18,6 +18,9 @@ export const PERMISSIONS = {
   // User management
   USERS_READ: "users:read",
   USERS_WRITE: "users:write",
+  // Attendance
+  ATTENDANCE_READ: "attendance:read",
+  ATTENDANCE_WRITE: "attendance:write",
   // Settings (admin only)
   SETTINGS_READ: "settings:read",
   SETTINGS_WRITE: "settings:write",
@@ -34,30 +37,36 @@ export const ROLES = {
   VIEWER: "viewer",
 } as const;
 
-const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  [ROLES.ADMIN]: Object.values(PERMISSIONS), // admin has all including USERS_READ, USERS_WRITE
+export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
+  [ROLES.ADMIN]: Object.values(PERMISSIONS), // admin has all permissions including USERS_READ, USERS_WRITE
   [ROLES.INVENTORY_MANAGER]: [
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_WRITE,
     PERMISSIONS.DELIVERIES_READ,
   ],
+  // PAYROLL_MANAGER = HR role - has full CRUD for Users
   [ROLES.PAYROLL_MANAGER]: [
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.PAYROLL_READ,
     PERMISSIONS.PAYROLL_RUN,
     PERMISSIONS.PAYROLL_WRITE,
-    PERMISSIONS.USERS_READ,
-    PERMISSIONS.USERS_WRITE,
+    PERMISSIONS.USERS_READ, // HR can read users
+    PERMISSIONS.USERS_WRITE, // HR can create/update/delete users
+    PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
   ],
   [ROLES.DELIVERY_STAFF]: [
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.DELIVERIES_READ,
     PERMISSIONS.DELIVERIES_UPDATE_STATUS,
+    PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
   ],
   [ROLES.VIEWER]: [
     PERMISSIONS.INVENTORY_READ,
-    PERMISSIONS.PAYROLL_READ,
     PERMISSIONS.DELIVERIES_READ,
+    PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
   ],
 };
 
@@ -88,6 +97,7 @@ export const NAV_ITEMS: { href: string; label: string; permission: Permission | 
   { href: "/dashboard", label: "Dashboard", permission: null },
   { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
   { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
+  { href: "/dashboard/attendance", label: "Attendance", permission: PERMISSIONS.ATTENDANCE_READ },
   { href: "/dashboard/deliveries", label: "Deliveries", permission: PERMISSIONS.DELIVERIES_READ },
   { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
 ];

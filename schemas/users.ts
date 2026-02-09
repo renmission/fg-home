@@ -25,6 +25,16 @@ export const userCreateSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   roleIds: z.array(z.string().uuid()).min(1, "At least one role is required"),
+  departmentId: z
+    .union([z.string().uuid("Invalid department ID"), z.literal("")])
+    .optional()
+    .transform((val) => (val === "" || !val ? undefined : val)),
+  salaryRate: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "Invalid rate (e.g. 1000.00)")
+    .optional()
+    .or(z.literal(""))
+    .transform((val) => (val === "" || !val ? undefined : val)),
 });
 
 export type UserCreateValues = z.infer<typeof userCreateSchema>;
@@ -39,6 +49,16 @@ export const userUpdateSchema = z.object({
     .or(z.literal("")),
   roleIds: z.array(z.string().uuid()).optional(),
   disabled: z.union([z.literal(0), z.literal(1)]).optional(),
+  departmentId: z
+    .union([z.string().uuid("Invalid department ID"), z.literal("")])
+    .optional()
+    .transform((val) => (val === "" || !val ? undefined : val)),
+  salaryRate: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "Invalid rate (e.g. 1000.00)")
+    .optional()
+    .or(z.literal(""))
+    .transform((val) => (val === "" || !val ? undefined : val)),
 });
 
 export type UserUpdateValues = z.infer<typeof userUpdateSchema>;

@@ -6,6 +6,7 @@ import { NAV_ITEMS, PERMISSIONS, can, type SessionUser } from "@/lib/auth/permis
 const SETTINGS_NAV_ITEMS = [
   { href: "/dashboard/settings/categories", label: "Categories" },
   { href: "/dashboard/settings/units", label: "Units" },
+  { href: "/dashboard/settings/departments", label: "Departments" },
 ] as const;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

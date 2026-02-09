@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, parseApiResponse } from "@/lib/errors";
 import { PERMISSIONS, can, ROLES, type SessionUser } from "@/lib/auth/permissions";
 
 const USERS_KEY = ["users"];
@@ -294,7 +294,10 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: USERS_KEY });
       queryClient.invalidateQueries({ queryKey: ["users", "audit"] });
-      setDialog(null);
+      // Only close dialog if it's open (not for disable/enable actions)
+      if (dialog !== null && dialog !== "create") {
+        setDialog(null);
+      }
     },
   });
 
@@ -386,11 +389,13 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <colgroup>
-                      <col style={{ width: "22%" }} />
-                      <col style={{ width: "28%" }} />
-                      <col style={{ width: "22%" }} />
-                      <col style={{ width: "13%" }} />
-                      {canWrite && <col style={{ width: "15%" }} />}
+                      <col style={{ width: "15%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "8%" }} />
+                      {canWrite && <col style={{ width: "19%" }} />}
                     </colgroup>
                     <TableHeader>
                       <TableRow>
@@ -412,6 +417,8 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                             onSort={() => handleSort("email")}
                           />
                         </TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Rate</TableHead>
                         <TableHead>Roles</TableHead>
                         <TableHead>Status</TableHead>
                         {canWrite && <TableHead>Actions</TableHead>}
@@ -421,7 +428,7 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                       {users.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={canWrite ? 5 : 4}
+                            colSpan={canWrite ? 7 : 6}
                             className="text-center text-muted-foreground py-8"
                           >
                             No users found.
@@ -431,9 +438,17 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                         users.map((u) => (
                           <TableRow key={u.id}>
                             <TableCell className="font-medium">{u.name ?? "—"}</TableCell>
-                            <TableCell>{u.email}</TableCell>
-                            <TableCell>{u.roles.length ? u.roles.join(", ") : "—"}</TableCell>
-                            <TableCell>{u.disabled === 1 ? "Disabled" : "Enabled"}</TableCell>
+                            <TableCell className="break-words">{u.email}</TableCell>
+                            <TableCell className="break-words">{u.departmentName ?? "—"}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {u.salaryRate ? `₱${parseFloat(u.salaryRate).toFixed(2)}/hr` : "—"}
+                            </TableCell>
+                            <TableCell className="break-words text-sm">
+                              {u.roles.length ? u.roles.join(", ") : "—"}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {u.disabled === 1 ? "Disabled" : "Enabled"}
+                            </TableCell>
                             {canWrite && (
                               <TableCell className="whitespace-nowrap">
                                 <div className="flex gap-1">
@@ -566,6 +581,15 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                 email: body.email,
                 roleIds: body.roleIds,
               };
+              if ("disabled" in body && body.disabled !== undefined) {
+                updateBody.disabled = body.disabled;
+              }
+              if ("departmentId" in body && body.departmentId !== undefined) {
+                updateBody.departmentId = body.departmentId;
+              }
+              if ("salaryRate" in body && body.salaryRate !== undefined) {
+                updateBody.salaryRate = body.salaryRate;
+              }
               if (body.password && body.password.length >= 8) updateBody.password = body.password;
               updateMutation.mutate({ id: dialog.id, body: updateBody });
             }
@@ -597,7 +621,9 @@ function UserFormDialog({
   roles: RoleOption[];
   currentUser: SessionUser | null;
   onClose: () => void;
-  onSubmit: (body: UserCreateValues | (UserUpdateValues & { password?: string })) => void;
+  onSubmit: (
+    body: UserCreateValues | (UserUpdateValues & { password?: string; disabled?: 0 | 1 })
+  ) => void;
   isSubmitting: boolean;
   error: string | null;
 }) {
@@ -609,7 +635,23 @@ function UserFormDialog({
   const [password, setPassword] = useState("");
   const [roleIds, setRoleIds] = useState<string[]>(user ? [] : []);
   const [disabled, setDisabled] = useState<0 | 1>(user ? (user.disabled as 0 | 1) : 0);
+  const [departmentId, setDepartmentId] = useState<string>("");
+  const [salaryRate, setSalaryRate] = useState<string>("");
   const [detail, setDetail] = useState<UserDetail | null>(null);
+
+  // Fetch departments
+  const { data: departmentsData } = useQuery({
+    queryKey: ["settings", "departments"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/departments");
+      const json = await parseApiResponse<{ data: Array<{ id: string; name: string }> }>(
+        res,
+        "Failed to load departments"
+      );
+      return json?.data ?? [];
+    },
+  });
+  const departments = departmentsData ?? [];
 
   const isEdit = user !== null;
 
@@ -618,6 +660,21 @@ function UserFormDialog({
     queryFn: () => fetchUser(user!.id),
     enabled: isEdit && !!user?.id,
   });
+
+  // Reset form state when user prop changes (switching users or opening/closing dialog)
+  useEffect(() => {
+    if (!isEdit) {
+      // Reset form when creating new user
+      setName("");
+      setEmail("");
+      setPassword("");
+      setRoleIds([]);
+      setDisabled(0);
+      setDepartmentId("");
+      setSalaryRate("");
+      setDetail(null);
+    }
+  }, [isEdit, user?.id]);
 
   useEffect(() => {
     if (userDetail?.data) {
@@ -633,6 +690,8 @@ function UserFormDialog({
           });
       setRoleIds(filteredRoleIds);
       setDisabled(userDetail.data.disabled as 0 | 1);
+      setDepartmentId(userDetail.data.departmentId ?? "");
+      setSalaryRate(userDetail.data.salaryRate ?? "");
     }
   }, [userDetail, isCurrentUserAdmin, roles]);
 
@@ -659,6 +718,8 @@ function UserFormDialog({
         password: password.length >= 8 ? password : undefined,
         roleIds: filteredRoleIds,
         disabled,
+        departmentId: departmentId.trim() || undefined,
+        salaryRate: salaryRate.trim() || undefined,
       });
     } else {
       if (filteredRoleIds.length === 0) {
@@ -672,6 +733,8 @@ function UserFormDialog({
         email: email.trim(),
         password,
         roleIds: filteredRoleIds,
+        departmentId: departmentId.trim() || undefined,
+        salaryRate: salaryRate.trim() || undefined,
       });
     }
   };
@@ -720,6 +783,37 @@ function UserFormDialog({
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
+              </div>
+              <div>
+                <Label htmlFor="user-department">Department (optional)</Label>
+                <select
+                  id="user-department"
+                  className="input-select mt-2 w-full"
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  aria-label="Department"
+                >
+                  <option value="">No department</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="user-salary-rate">Salary Rate per Hour (optional)</Label>
+                <Input
+                  id="user-salary-rate"
+                  type="text"
+                  value={salaryRate}
+                  onChange={(e) => setSalaryRate(e.target.value)}
+                  placeholder="e.g. 50.00"
+                  pattern="^\d+(\.\d{1,2})?$"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Enter hourly rate (e.g. 50.00 or 25.50)
+                </p>
               </div>
               <div>
                 <Label htmlFor="user-password">

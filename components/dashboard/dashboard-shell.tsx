@@ -8,7 +8,6 @@ import type { NavItem } from "@/components/dashboard/dashboard-nav";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import type { UserMenuUser } from "@/components/dashboard/user-menu";
-import { NavbarSectionTitle } from "@/components/dashboard/navbar-section-title";
 import { IconBell } from "@/components/dashboard/sidebar-icons";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -118,6 +117,13 @@ export function DashboardShell({
   const closeSidebar = () => setSidebarOpen(false);
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
+  /** Only close sidebar when navigating on mobile (drawer); leave desktop sidebar state unchanged */
+  const handleNavNavigate = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      closeSidebar();
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Top navbar — full width, always visible (reference: logo + section title left; actions + theme + user right) */}
@@ -135,25 +141,19 @@ export function DashboardShell({
           </Button>
           <Link
             href="/dashboard"
-            className="shrink-0 font-semibold text-foreground transition-opacity hover:opacity-80"
+            className="flex shrink-0 items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80"
             onClick={closeSidebar}
           >
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+              aria-hidden
+            >
+              FG
+            </span>
             FG Homes
           </Link>
-          <span className="hidden text-muted-foreground/80 sm:inline">—</span>
-          <NavbarSectionTitle />
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 hidden md:flex"
-            onClick={toggleSidebar}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {sidebarOpen ? <PanelLeftCloseIcon /> : <PanelLeftIcon />}
-          </Button>
           <ThemeToggle />
           <Button
             type="button"
@@ -221,9 +221,23 @@ export function DashboardShell({
           <DashboardNav
             items={navItems}
             settingsItems={settingsNavItems}
-            onNavigate={closeSidebar}
+            onNavigate={handleNavNavigate}
             collapsed={!sidebarOpen}
           />
+          <div
+            className={cn(
+              "mt-auto shrink-0 border-t border-border px-3 py-3 text-center text-xs text-muted-foreground",
+              !sidebarOpen && "md:px-0 md:py-2"
+            )}
+          >
+            {sidebarOpen ? (
+              <>© {new Date().getFullYear()} FG Homes</>
+            ) : (
+              <span className="hidden md:inline" title={`© ${new Date().getFullYear()} FG Homes`}>
+                ©
+              </span>
+            )}
+          </div>
         </aside>
 
         {/* Main content — full width */}

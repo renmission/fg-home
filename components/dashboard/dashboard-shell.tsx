@@ -10,6 +10,7 @@ import { UserMenu } from "@/components/dashboard/user-menu";
 import type { UserMenuUser } from "@/components/dashboard/user-menu";
 import { NavbarSectionTitle } from "@/components/dashboard/navbar-section-title";
 import { IconBell } from "@/components/dashboard/sidebar-icons";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const MenuIcon = () => (
@@ -49,6 +50,44 @@ const CloseIcon = () => (
   </svg>
 );
 
+const PanelLeftCloseIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m16 15-3-3 3-3" />
+  </svg>
+);
+
+const PanelLeftIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m13 9 3 3-3 3" />
+  </svg>
+);
+
 export function DashboardShell({
   navItems,
   settingsNavItems = [],
@@ -60,10 +99,12 @@ export function DashboardShell({
   user: UserMenuUser;
   children: React.ReactNode;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    if (menuOpen) {
+    const isMobile = () =>
+      typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+    if (sidebarOpen && isMobile()) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -71,9 +112,11 @@ export function DashboardShell({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [menuOpen]);
+  }, [sidebarOpen]);
 
-  const closeMenu = () => setMenuOpen(false);
+  const openSidebar = () => setSidebarOpen(true);
+  const closeSidebar = () => setSidebarOpen(false);
+  const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -85,7 +128,7 @@ export function DashboardShell({
             variant="ghost"
             size="icon"
             className="h-10 w-10 shrink-0 md:hidden"
-            onClick={() => setMenuOpen(true)}
+            onClick={openSidebar}
             aria-label="Open menu"
           >
             <MenuIcon />
@@ -93,7 +136,7 @@ export function DashboardShell({
           <Link
             href="/dashboard"
             className="shrink-0 font-semibold text-foreground transition-opacity hover:opacity-80"
-            onClick={closeMenu}
+            onClick={closeSidebar}
           >
             FG Homes
           </Link>
@@ -101,6 +144,16 @@ export function DashboardShell({
           <NavbarSectionTitle />
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 hidden md:flex"
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            {sidebarOpen ? <PanelLeftCloseIcon /> : <PanelLeftIcon />}
+          </Button>
           <ThemeToggle />
           <Button
             type="button"
@@ -120,36 +173,57 @@ export function DashboardShell({
         role="presentation"
         className={cn(
           "fixed inset-0 z-40 bg-black/50 transition-opacity md:hidden",
-          menuOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
-        onClick={closeMenu}
+        onClick={closeSidebar}
         aria-hidden
       />
 
-      {/* Main area: sidebar + content */}
-      <div className="flex min-h-0 flex-1">
-        {/* Sidebar — drawer on mobile, static on md+ (darker background like reference) */}
+      {/* Main area: min height so sidebar stretches full viewport height */}
+      <div className="flex min-h-[calc(100vh-3.5rem)] flex-1">
+        {/* Sidebar — drawer on mobile; on desktop expanded (w-56) or collapsed (w-16) with icons + toggle visible */}
         <aside
           className={cn(
-            "flex flex-col border-r border-border bg-sidebar transition-transform duration-200 ease-out",
-            "fixed top-14 left-0 z-40 h-[calc(100vh-3.5rem)] w-72 max-w-[85vw] md:relative md:top-0 md:z-auto md:h-auto md:w-56 md:max-w-none md:translate-x-0",
-            menuOpen ? "translate-x-0" : "-translate-x-full"
+            "flex flex-col border-r border-border bg-sidebar transition-[transform,width] duration-200 ease-out",
+            "fixed top-14 left-0 z-40 h-[calc(100vh-3.5rem)] w-72 max-w-[85vw] md:relative md:top-0 md:z-auto md:h-full md:min-h-[calc(100vh-3.5rem)] md:max-w-none md:shrink-0",
+            sidebarOpen ? "translate-x-0 md:w-56" : "-translate-x-full md:translate-x-0 md:w-16"
           )}
         >
-          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 md:justify-start">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 md:justify-end md:px-2">
+            <Tooltip
+              content={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              side="right"
+              className="hidden md:inline-flex"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={toggleSidebar}
+                aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              >
+                {sidebarOpen ? <PanelLeftCloseIcon /> : <PanelLeftIcon />}
+              </Button>
+            </Tooltip>
             <span className="font-semibold text-foreground md:hidden">Menu</span>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-10 w-10 md:hidden"
-              onClick={closeMenu}
+              className="h-10 w-10 shrink-0 md:hidden"
+              onClick={closeSidebar}
               aria-label="Close menu"
             >
               <CloseIcon />
             </Button>
           </div>
-          <DashboardNav items={navItems} settingsItems={settingsNavItems} onNavigate={closeMenu} />
+          <DashboardNav
+            items={navItems}
+            settingsItems={settingsNavItems}
+            onNavigate={closeSidebar}
+            collapsed={!sidebarOpen}
+          />
         </aside>
 
         {/* Main content — full width */}

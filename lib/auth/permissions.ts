@@ -15,6 +15,9 @@ export const PERMISSIONS = {
   DELIVERIES_READ: "deliveries:read",
   DELIVERIES_UPDATE_STATUS: "deliveries:update_status",
   DELIVERIES_WRITE: "deliveries:write",
+  // User management
+  USERS_READ: "users:read",
+  USERS_WRITE: "users:write",
   // Settings (admin only)
   SETTINGS_READ: "settings:read",
   SETTINGS_WRITE: "settings:write",
@@ -32,7 +35,7 @@ export const ROLES = {
 } as const;
 
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  [ROLES.ADMIN]: Object.values(PERMISSIONS),
+  [ROLES.ADMIN]: Object.values(PERMISSIONS), // admin has all including USERS_READ, USERS_WRITE
   [ROLES.INVENTORY_MANAGER]: [
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_WRITE,
@@ -43,6 +46,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.PAYROLL_READ,
     PERMISSIONS.PAYROLL_RUN,
     PERMISSIONS.PAYROLL_WRITE,
+    PERMISSIONS.USERS_READ,
+    PERMISSIONS.USERS_WRITE,
   ],
   [ROLES.DELIVERY_STAFF]: [
     PERMISSIONS.INVENTORY_READ,
@@ -84,4 +89,5 @@ export const NAV_ITEMS: { href: string; label: string; permission: Permission | 
   { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
   { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
   { href: "/dashboard/deliveries", label: "Deliveries", permission: PERMISSIONS.DELIVERIES_READ },
+  { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
 ];

@@ -44,6 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .where(eq(users.email, String(credentials.email)))
           .limit(1);
         if (!userRow?.passwordHash) return null;
+        if (userRow.disabled === 1) return null;
         const ok = await bcrypt.compare(String(credentials.password), userRow.passwordHash);
         if (!ok) return null;
         return {

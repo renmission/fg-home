@@ -15,6 +15,9 @@ export const PERMISSIONS = {
   DELIVERIES_READ: "deliveries:read",
   DELIVERIES_UPDATE_STATUS: "deliveries:update_status",
   DELIVERIES_WRITE: "deliveries:write",
+  // Customers
+  CUSTOMERS_READ: "customers:read",
+  CUSTOMERS_WRITE: "customers:write",
   // User management
   USERS_READ: "users:read",
   USERS_WRITE: "users:write",
@@ -43,6 +46,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_WRITE,
     PERMISSIONS.DELIVERIES_READ,
+    PERMISSIONS.CUSTOMERS_READ,
+    PERMISSIONS.CUSTOMERS_WRITE,
   ],
   // PAYROLL_MANAGER = HR role - has full CRUD for Users
   [ROLES.PAYROLL_MANAGER]: [
@@ -59,6 +64,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.DELIVERIES_READ,
     PERMISSIONS.DELIVERIES_UPDATE_STATUS,
+    PERMISSIONS.CUSTOMERS_READ,
+    PERMISSIONS.CUSTOMERS_WRITE,
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
   ],
@@ -98,6 +105,7 @@ export const NAV_ITEMS: { href: string; label: string; permission: Permission | 
   { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
   { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
   { href: "/dashboard/attendance", label: "Attendance", permission: PERMISSIONS.ATTENDANCE_READ },
+  { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
   { href: "/dashboard/deliveries", label: "Deliveries", permission: PERMISSIONS.DELIVERIES_READ },
   { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
 ];

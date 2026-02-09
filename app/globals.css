@@ -73,4 +73,32 @@
   .input-select {
     @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
+
+  /* Ensure select dropdowns open downward and have readable text */
+  select {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  select option {
+    font-size: 16px !important;
+    padding: 12px 8px !important;
+    line-height: 1.5 !important;
+    min-height: 44px !important; /* iOS recommended touch target */
+  }
+
+  /* Mobile-specific improvements for select dropdowns - option text matches select box text */
+  @media (max-width: 640px) {
+    select {
+      font-size: 16px !important; /* Select box text size */
+    }
+
+    select option {
+      font-size: 16px !important; /* Same font size as select box text */
+      padding: 14px 12px !important;
+      line-height: 1.5 !important;
+      min-height: 48px !important; /* Better touch target */
+    }
+  }
 }

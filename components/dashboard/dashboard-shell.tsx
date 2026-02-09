@@ -125,7 +125,7 @@ export function DashboardShell({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* Top navbar — full width, always visible (reference: logo + section title left; actions + theme + user right) */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -179,8 +179,8 @@ export function DashboardShell({
         aria-hidden
       />
 
-      {/* Main area: min height so sidebar stretches full viewport height */}
-      <div className="flex min-h-[calc(100vh-3.5rem)] flex-1">
+      {/* Main area: fixed height so only main content scrolls, not the page */}
+      <div className="flex min-h-0 flex-1">
         {/* Sidebar — drawer on mobile; on desktop expanded (w-56) or collapsed (w-16) with icons + toggle visible */}
         <aside
           className={cn(
@@ -240,8 +240,8 @@ export function DashboardShell({
           </div>
         </aside>
 
-        {/* Main content — full width */}
-        <main className="min-w-0 flex-1 overflow-auto">
+        {/* Main content — full width, scrolls inside */}
+        <main className="min-h-0 min-w-0 flex-1 overflow-auto">
           <div className="w-full px-4 py-4 sm:px-6 sm:py-6">{children}</div>
         </main>
       </div>

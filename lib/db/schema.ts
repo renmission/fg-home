@@ -12,6 +12,9 @@ export const users = pgTable("user", {
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
   passwordHash: text("password_hash"),
+  /** 0 = enabled, 1 = disabled (no delete for audit). */
+  disabled: integer("disabled").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
 export const accounts = pgTable(
@@ -75,6 +78,18 @@ export const userRoles = pgTable(
     pk: primaryKey({ columns: [t.userId, t.roleId] }),
   })
 );
+
+/** Audit log for user/role changes (who, when, what). */
+export const auditLogs = pgTable("audit_log", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+  targetUserId: text("target_user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(), // e.g. "user.created", "user.updated", "user.roles_changed", "user.disabled", "user.enabled"
+  details: text("details"), // JSON or free text
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
 
 // --- Inventory (Phase 2) ---
 

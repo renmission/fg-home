@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getErrorMessage } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { can, type SessionUser } from "@/lib/auth/permissions";
 
@@ -497,7 +498,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                   aria-label="Filter by type"
                 >
                   <option value="all">All types</option>
-                  <option value="in">In</option>
+                  <option value="in">Received</option>
                   <option value="out">Out</option>
                   <option value="adjustment">Adjustment</option>
                 </select>
@@ -570,7 +571,10 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             <TableCell>
                               {m.productName} ({m.productSku})
                             </TableCell>
-                            <TableCell>{m.type}</TableCell>
+                            <TableCell>
+                              {MOVEMENT_TYPE_LABELS[m.type as keyof typeof MOVEMENT_TYPE_LABELS] ??
+                                m.type}
+                            </TableCell>
                             <TableCell className="text-right">
                               {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                             </TableCell>
@@ -623,9 +627,15 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
       {movementDialog && (
         <MovementFormDialog
           product={movementDialog}
-          onClose={() => setMovementDialog(null)}
+          onClose={() => {
+            createMovementMutation.reset();
+            setMovementDialog(null);
+          }}
           onSubmit={(body) => createMovementMutation.mutate(body)}
           isSubmitting={createMovementMutation.isPending}
+          error={
+            createMovementMutation.error ? getErrorMessage(createMovementMutation.error) : null
+          }
         />
       )}
     </div>
@@ -887,11 +897,18 @@ function ProductFormDialog({
   );
 }
 
+const MOVEMENT_TYPE_LABELS: Record<"in" | "out" | "adjustment", string> = {
+  in: "Received",
+  out: "Out",
+  adjustment: "Adjustment",
+};
+
 function MovementFormDialog({
   product,
   onClose,
   onSubmit,
   isSubmitting,
+  error,
 }: {
   product: ProductListItem;
   onClose: () => void;
@@ -903,6 +920,7 @@ function MovementFormDialog({
     note?: string;
   }) => void;
   isSubmitting: boolean;
+  error?: string | null;
 }) {
   const [type, setType] = useState<"in" | "out" | "adjustment">("in");
   const [quantity, setQuantity] = useState("");
@@ -946,6 +964,14 @@ function MovementFormDialog({
           <p className="mb-4 text-sm text-muted-foreground">
             Current stock: {product.quantity} {product.unit}
           </p>
+          {error && (
+            <p
+              className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Type</Label>
@@ -955,8 +981,8 @@ function MovementFormDialog({
                 onChange={(e) => setType(e.target.value as "in" | "out" | "adjustment")}
                 aria-label="Movement type"
               >
-                <option value="in">In (receive)</option>
-                <option value="out">Out (dispatch)</option>
+                <option value="in">Received</option>
+                <option value="out">Out</option>
                 <option value="adjustment">Adjustment (+ or -)</option>
               </select>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchProducts,
   fetchMovements,
@@ -37,6 +37,25 @@ type ProductSortBy = "name" | "sku" | "category" | "reorderLevel" | "createdAt";
 type MovementSortBy = "createdAt" | "type" | "quantity" | "productName";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
+const IconMoreVertical = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <circle cx="12" cy="6" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="12" cy="18" r="1.5" />
+  </svg>
+);
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -149,7 +168,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
   const products = productsData?.data ?? [];
   const totalProducts = productsData?.total ?? 0;
   const totalProductPages = Math.ceil(totalProducts / productLimit) || 1;
-  const lowStockCount = products.filter((p) => p.lowStock).length;
+  // Future: show low-stock count/alerts in the notification bell (header).
   const movements = movementsData?.data ?? [];
   const totalMovements = movementsData?.total ?? 0;
   const totalMovementPages = Math.ceil(totalMovements / movementLimit) || 1;
@@ -224,32 +243,6 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
           </Button>
         )}
       </div>
-
-      {lowStockCount > 0 && (
-        <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-          <CardHeader className="pb-2 p-4 sm:p-6">
-            <CardTitle className="text-base">Low stock</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <p className="text-sm text-muted-foreground">
-              {lowStockCount} product{lowStockCount !== 1 ? "s" : ""} at or below reorder level.
-            </p>
-            <ul className="mt-2 list-inside list-disc text-sm">
-              {products
-                .filter((p) => p.lowStock)
-                .slice(0, 5)
-                .map((p) => (
-                  <li key={p.id}>
-                    {p.name} ({p.sku}) — {p.quantity} {p.unit}
-                  </li>
-                ))}
-              {lowStockCount > 5 && (
-                <li className="text-muted-foreground">and {lowStockCount - 5} more</li>
-              )}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="border-b border-border overflow-x-auto">
         <div className="flex gap-0 min-w-0" role="tablist" aria-label="Inventory sections">
@@ -341,6 +334,15 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
               <>
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
+                    <colgroup>
+                      <col style={{ width: canWrite ? "24%" : "28%" }} />
+                      <col style={{ width: canWrite ? "14%" : "17%" }} />
+                      <col style={{ width: canWrite ? "16%" : "18%" }} />
+                      <col style={{ width: canWrite ? "8%" : "9%" }} />
+                      <col style={{ width: canWrite ? "12%" : "14%" }} />
+                      <col style={{ width: canWrite ? "12%" : "14%" }} />
+                      {canWrite && <col style={{ width: "10%" }} />}
+                    </colgroup>
                     <TableHeader>
                       <TableRow>
                         <TableHead>
@@ -381,7 +383,9 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             onSort={() => handleProductSort("reorderLevel")}
                           />
                         </TableHead>
-                        {canWrite && <TableHead className="w-[120px]">Actions</TableHead>}
+                        {canWrite && (
+                          <TableHead className="w-0 px-2 text-center">Actions</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -412,40 +416,18 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             </TableCell>
                             <TableCell className="text-right">{p.reorderLevel}</TableCell>
                             {canWrite && (
-                              <TableCell className="whitespace-nowrap">
-                                <div className="flex flex-wrap gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setMovementDialog(p)}
-                                  >
-                                    Stock
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setProductDialog(p)}
-                                  >
-                                    Edit
-                                  </Button>
-                                  {!p.archived && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive"
-                                      onClick={() => {
-                                        if (
-                                          confirm(
-                                            `Archive "${p.name}"? You can filter archived later.`
-                                          )
-                                        )
-                                          archiveProductMutation.mutate(p.id);
-                                      }}
-                                    >
-                                      Archive
-                                    </Button>
-                                  )}
-                                </div>
+                              <TableCell className="whitespace-nowrap px-2 text-center">
+                                <ProductRowActions
+                                  onStock={() => setMovementDialog(p)}
+                                  onEdit={() => setProductDialog(p)}
+                                  onArchive={() => {
+                                    if (
+                                      confirm(`Archive "${p.name}"? You can filter archived later.`)
+                                    )
+                                      archiveProductMutation.mutate(p.id);
+                                  }}
+                                  isArchived={p.archived === 1}
+                                />
                               </TableCell>
                             )}
                           </TableRow>
@@ -512,6 +494,14 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
               <>
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
+                    <colgroup>
+                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "28%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "16%" }} />
+                    </colgroup>
                     <TableHeader>
                       <TableRow>
                         <TableHead>
@@ -637,6 +627,87 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
             createMovementMutation.error ? getErrorMessage(createMovementMutation.error) : null
           }
         />
+      )}
+    </div>
+  );
+}
+
+function ProductRowActions({
+  onStock,
+  onEdit,
+  onArchive,
+  isArchived,
+}: {
+  onStock: () => void;
+  onEdit: () => void;
+  onArchive: () => void;
+  isArchived: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label="Actions"
+        aria-expanded={open}
+      >
+        <IconMoreVertical />
+      </Button>
+      {open && (
+        <div
+          className="absolute right-0 top-full z-50 mt-1 flex min-w-[8rem] flex-col rounded-md border border-border bg-card py-1 shadow-lg"
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              onStock();
+              setOpen(false);
+            }}
+          >
+            Stock
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+            onClick={() => {
+              onEdit();
+              setOpen(false);
+            }}
+          >
+            Edit
+          </button>
+          {!isArchived && (
+            <button
+              type="button"
+              role="menuitem"
+              className="block w-full px-3 py-2 text-left text-sm text-destructive hover:bg-muted"
+              onClick={() => {
+                onArchive();
+                setOpen(false);
+              }}
+            >
+              Archive
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

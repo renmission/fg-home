@@ -124,10 +124,14 @@ export function SettingsUnitsClient({ canWrite }: { canWrite: boolean }) {
             <>
               <div className="overflow-x-auto rounded-md border border-border">
                 <Table>
+                  <colgroup>
+                    <col style={{ width: canWrite ? "70%" : "100%" }} />
+                    {canWrite && <col style={{ width: "30%" }} />}
+                  </colgroup>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      {canWrite && <TableHead className="w-[140px]">Actions</TableHead>}
+                      {canWrite && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   fetchProducts,
   fetchMovements,
@@ -32,41 +32,125 @@ const MOVEMENTS_QUERY_KEY = ["inventory", "movements"];
 
 type Tab = "products" | "movements";
 
+type ProductSortBy = "name" | "sku" | "category" | "reorderLevel" | "createdAt";
+type MovementSortBy = "createdAt" | "type" | "quantity" | "productName";
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function InventoryDashboard({ user }: { user: SessionUser | null }) {
   const canWrite = user ? can(user, PERMISSIONS.INVENTORY_WRITE) : false;
   const [tab, setTab] = useState<Tab>("products");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<"name" | "sku">("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [productSearch, setProductSearch] = useState("");
+  const [productPage, setProductPage] = useState(1);
+  const [productLimit, setProductLimit] = useState(20);
+  const [productSortBy, setProductSortBy] = useState<ProductSortBy>("name");
+  const [productSortOrder, setProductSortOrder] = useState<"asc" | "desc">("asc");
+  const [productArchived, setProductArchived] = useState<"all" | "active" | "archived">("active");
+  const [productCategory, setProductCategory] = useState("");
+  const [movementSearch, setMovementSearch] = useState("");
+  const [movementPage, setMovementPage] = useState(1);
+  const [movementLimit, setMovementLimit] = useState(20);
+  const [movementType, setMovementType] = useState<"all" | "in" | "out" | "adjustment">("all");
+  const [movementSortBy, setMovementSortBy] = useState<MovementSortBy>("createdAt");
+  const [movementSortOrder, setMovementSortOrder] = useState<"asc" | "desc">("desc");
   const [productDialog, setProductDialog] = useState<"create" | ProductListItem | null>(null);
   const [movementDialog, setMovementDialog] = useState<ProductListItem | null>(null);
-  const [movementsPage, setMovementsPage] = useState(1);
+
+  const debouncedProductSearch = useDebouncedValue(productSearch, 300);
+  const debouncedMovementSearch = useDebouncedValue(movementSearch, 300);
 
   const queryClient = useQueryClient();
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: [...PRODUCTS_QUERY_KEY, { search, page, sortBy, sortOrder }],
+    queryKey: [
+      ...PRODUCTS_QUERY_KEY,
+      {
+        search: debouncedProductSearch,
+        page: productPage,
+        limit: productLimit,
+        sortBy: productSortBy,
+        sortOrder: productSortOrder,
+        archived:
+          productArchived === "archived" ? true : productArchived === "active" ? false : undefined,
+        category: productCategory.trim() || undefined,
+      },
+    ],
     queryFn: () =>
       fetchProducts({
-        search: search || undefined,
-        page,
-        limit: 20,
-        sortBy,
-        sortOrder,
+        search: debouncedProductSearch.trim() || undefined,
+        page: productPage,
+        limit: productLimit,
+        sortBy: productSortBy,
+        sortOrder: productSortOrder,
+        archived:
+          productArchived === "archived" ? true : productArchived === "active" ? false : undefined,
+        category: productCategory.trim() || undefined,
       }),
   });
 
   const { data: movementsData, isLoading: movementsLoading } = useQuery({
-    queryKey: [...MOVEMENTS_QUERY_KEY, { page: movementsPage }],
-    queryFn: () => fetchMovements({ page: movementsPage, limit: 20 }),
+    queryKey: [
+      ...MOVEMENTS_QUERY_KEY,
+      {
+        search: debouncedMovementSearch,
+        page: movementPage,
+        limit: movementLimit,
+        type: movementType === "all" ? undefined : movementType,
+        sortBy: movementSortBy,
+        sortOrder: movementSortOrder,
+      },
+    ],
+    queryFn: () =>
+      fetchMovements({
+        search: debouncedMovementSearch.trim() || undefined,
+        page: movementPage,
+        limit: movementLimit,
+        type: movementType === "all" ? undefined : movementType,
+        sortBy: movementSortBy,
+        sortOrder: movementSortOrder,
+      }),
   });
 
   const products = productsData?.data ?? [];
   const totalProducts = productsData?.total ?? 0;
+  const totalProductPages = Math.ceil(totalProducts / productLimit) || 1;
   const lowStockCount = products.filter((p) => p.lowStock).length;
   const movements = movementsData?.data ?? [];
   const totalMovements = movementsData?.total ?? 0;
+  const totalMovementPages = Math.ceil(totalMovements / movementLimit) || 1;
+
+  const handleProductSort = useCallback((column: ProductSortBy) => {
+    setProductSortBy((prev) => {
+      if (prev === column) {
+        setProductSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setProductSortOrder("asc");
+      return column;
+    });
+    setProductPage(1);
+  }, []);
+
+  const handleMovementSort = useCallback((column: MovementSortBy) => {
+    setMovementSortBy((prev) => {
+      if (prev === column) {
+        setMovementSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setMovementSortOrder(column === "createdAt" ? "desc" : "asc");
+      return column;
+    });
+    setMovementPage(1);
+  }, []);
 
   const createProductMutation = useMutation({
     mutationFn: createProduct,
@@ -102,18 +186,25 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold">Inventory</h1>
-        {canWrite && <Button onClick={() => setProductDialog("create")}>Add product</Button>}
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold sm:text-2xl">Inventory</h1>
+        {canWrite && (
+          <Button
+            onClick={() => setProductDialog("create")}
+            className="w-full min-h-11 touch-manipulation sm:w-auto sm:min-h-0"
+          >
+            Add product
+          </Button>
+        )}
       </div>
 
       {lowStockCount > 0 && (
         <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 p-4 sm:p-6">
             <CardTitle className="text-base">Low stock</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             <p className="text-sm text-muted-foreground">
               {lowStockCount} product{lowStockCount !== 1 ? "s" : ""} at or below reorder level.
             </p>
@@ -134,143 +225,212 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
         </Card>
       )}
 
-      <div className="flex gap-2 border-b">
-        <Button
-          variant={tab === "products" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setTab("products")}
-        >
-          Products
-        </Button>
-        <Button
-          variant={tab === "movements" ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => setTab("movements")}
-        >
-          Movement history
-        </Button>
+      <div className="border-b border-border overflow-x-auto">
+        <div className="flex gap-0 min-w-0" role="tablist" aria-label="Inventory sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "products"}
+            className={`min-h-11 touch-manipulation flex-shrink-0 rounded-t-md border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === "products"
+                ? "border-primary bg-muted/50 text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+            }`}
+            onClick={() => setTab("products")}
+          >
+            Products
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "movements"}
+            className={`min-h-11 touch-manipulation flex-shrink-0 rounded-t-md border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              tab === "movements"
+                ? "border-primary bg-muted/50 text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+            }`}
+            onClick={() => setTab("movements")}
+          >
+            Movement history
+          </button>
+        </div>
       </div>
 
       {tab === "products" && (
         <Card>
-          <CardHeader className="pb-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <Input
-                placeholder="Search by name, SKU, category..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="max-w-sm"
-              />
-              <div className="flex gap-2">
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "name" | "sku")}
-                >
-                  <option value="name">Sort by name</option>
-                  <option value="sku">Sort by SKU</option>
-                </select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
-                >
-                  {sortOrder === "asc" ? "↑" : "↓"}
-                </Button>
+          <CardHeader className="pb-4 p-4 sm:p-6">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+                <Input
+                  placeholder="Search by name, SKU, category..."
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setProductPage(1);
+                  }}
+                  className="w-full min-h-11 touch-manipulation sm:max-w-xs sm:min-h-0"
+                  aria-label="Search products"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[8rem] sm:min-h-0"
+                    value={productArchived}
+                    onChange={(e) => {
+                      setProductArchived(e.target.value as "all" | "active" | "archived");
+                      setProductPage(1);
+                    }}
+                    aria-label="Filter by status"
+                  >
+                    <option value="active">Active</option>
+                    <option value="archived">Archived</option>
+                    <option value="all">All</option>
+                  </select>
+                  <Input
+                    placeholder="Category"
+                    value={productCategory}
+                    onChange={(e) => {
+                      setProductCategory(e.target.value);
+                      setProductPage(1);
+                    }}
+                    className="w-full min-h-11 max-w-[10rem] sm:min-h-0"
+                    aria-label="Filter by category"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {productsLoading ? (
               <p className="text-muted-foreground">Loading…</p>
             ) : (
               <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Reorder</TableHead>
-                      {canWrite && <TableHead className="w-[120px]" />}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>{p.sku}</TableCell>
-                        <TableCell>{p.category ?? "—"}</TableCell>
-                        <TableCell>{p.unit}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={p.lowStock ? "font-medium text-amber-600" : ""}>
-                            {p.quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">{p.reorderLevel}</TableCell>
-                        {canWrite && (
-                          <TableCell className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setMovementDialog(p)}
-                            >
-                              Stock
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setProductDialog(p)}>
-                              Edit
-                            </Button>
-                            {!p.archived && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive"
-                                onClick={() => {
-                                  if (
-                                    confirm(`Archive "${p.name}"? You can filter archived later.`)
-                                  )
-                                    archiveProductMutation.mutate(p.id);
-                                }}
-                              >
-                                Archive
-                              </Button>
-                            )}
-                          </TableCell>
-                        )}
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <SortableHeader
+                            label="Name"
+                            currentSort={productSortBy}
+                            sortKey="name"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("name")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="SKU"
+                            currentSort={productSortBy}
+                            sortKey="sku"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("sku")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Category"
+                            currentSort={productSortBy}
+                            sortKey="category"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("category")}
+                          />
+                        </TableHead>
+                        <TableHead>Unit</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            label="Reorder"
+                            currentSort={productSortBy}
+                            sortKey="reorderLevel"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("reorderLevel")}
+                          />
+                        </TableHead>
+                        {canWrite && <TableHead className="w-[120px]">Actions</TableHead>}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {totalProducts > 20 && (
-                  <div className="mt-4 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Page {page} of {Math.ceil(totalProducts / 20)}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page <= 1}
-                        onClick={() => setPage((p) => p - 1)}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={page >= Math.ceil(totalProducts / 20)}
-                        onClick={() => setPage((p) => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                    </TableHeader>
+                    <TableBody>
+                      {products.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={canWrite ? 7 : 6}
+                            className="text-center text-muted-foreground py-8"
+                          >
+                            No products found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        products.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.name}</TableCell>
+                            <TableCell>{p.sku}</TableCell>
+                            <TableCell>{p.category ?? "—"}</TableCell>
+                            <TableCell>{p.unit}</TableCell>
+                            <TableCell className="text-right">
+                              <span
+                                className={
+                                  p.lowStock ? "font-medium text-amber-600 dark:text-amber-400" : ""
+                                }
+                              >
+                                {p.quantity}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">{p.reorderLevel}</TableCell>
+                            {canWrite && (
+                              <TableCell className="whitespace-nowrap">
+                                <div className="flex flex-wrap gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setMovementDialog(p)}
+                                  >
+                                    Stock
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setProductDialog(p)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  {!p.archived && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        if (
+                                          confirm(
+                                            `Archive "${p.name}"? You can filter archived later.`
+                                          )
+                                        )
+                                          archiveProductMutation.mutate(p.id);
+                                      }}
+                                    >
+                                      Archive
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <TablePagination
+                  page={productPage}
+                  totalPages={totalProductPages}
+                  totalItems={totalProducts}
+                  limit={productLimit}
+                  limitOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={setProductPage}
+                  onLimitChange={(l) => {
+                    setProductLimit(l);
+                    setProductPage(1);
+                  }}
+                />
               </>
             )}
           </CardContent>
@@ -279,64 +439,127 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
 
       {tab === "movements" && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recent movements</CardTitle>
+          <CardHeader className="pb-4 p-4 sm:p-6">
+            <div className="space-y-3">
+              <CardTitle className="text-base">Movement history</CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+                <Input
+                  placeholder="Search by product name or SKU..."
+                  value={movementSearch}
+                  onChange={(e) => {
+                    setMovementSearch(e.target.value);
+                    setMovementPage(1);
+                  }}
+                  className="w-full min-h-11 touch-manipulation sm:max-w-xs sm:min-h-0"
+                  aria-label="Search movements"
+                />
+                <select
+                  className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[8rem] sm:min-h-0"
+                  value={movementType}
+                  onChange={(e) => {
+                    setMovementType(e.target.value as "all" | "in" | "out" | "adjustment");
+                    setMovementPage(1);
+                  }}
+                  aria-label="Filter by type"
+                >
+                  <option value="all">All types</option>
+                  <option value="in">In</option>
+                  <option value="out">Out</option>
+                  <option value="adjustment">Adjustment</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {movementsLoading ? (
               <p className="text-muted-foreground">Loading…</p>
             ) : (
               <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Note</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {movements.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(m.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          {m.productName} ({m.productSku})
-                        </TableCell>
-                        <TableCell>{m.type}</TableCell>
-                        <TableCell className="text-right">
-                          {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
-                        </TableCell>
-                        <TableCell>{m.reference ?? "—"}</TableCell>
-                        <TableCell>{m.note ?? "—"}</TableCell>
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <SortableHeader
+                            label="Date"
+                            currentSort={movementSortBy}
+                            sortKey="createdAt"
+                            order={movementSortOrder}
+                            onSort={() => handleMovementSort("createdAt")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Product"
+                            currentSort={movementSortBy}
+                            sortKey="productName"
+                            order={movementSortOrder}
+                            onSort={() => handleMovementSort("productName")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Type"
+                            currentSort={movementSortBy}
+                            sortKey="type"
+                            order={movementSortOrder}
+                            onSort={() => handleMovementSort("type")}
+                          />
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            label="Qty"
+                            currentSort={movementSortBy}
+                            sortKey="quantity"
+                            order={movementSortOrder}
+                            onSort={() => handleMovementSort("quantity")}
+                            className="justify-end"
+                          />
+                        </TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Note</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {totalMovements > 20 && (
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={movementsPage <= 1}
-                      onClick={() => setMovementsPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={movementsPage >= Math.ceil(totalMovements / 20)}
-                      onClick={() => setMovementsPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+                    </TableHeader>
+                    <TableBody>
+                      {movements.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            No movements found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        movements.map((m) => (
+                          <TableRow key={m.id}>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">
+                              {new Date(m.createdAt).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              {m.productName} ({m.productSku})
+                            </TableCell>
+                            <TableCell>{m.type}</TableCell>
+                            <TableCell className="text-right">
+                              {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                            </TableCell>
+                            <TableCell>{m.reference ?? "—"}</TableCell>
+                            <TableCell>{m.note ?? "—"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <TablePagination
+                  page={movementPage}
+                  totalPages={totalMovementPages}
+                  totalItems={totalMovements}
+                  limit={movementLimit}
+                  limitOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={setMovementPage}
+                  onLimitChange={(l) => {
+                    setMovementLimit(l);
+                    setMovementPage(1);
+                  }}
+                />
               </>
             )}
           </CardContent>
@@ -373,6 +596,101 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
   );
 }
 
+function SortableHeader<T extends string>({
+  label,
+  currentSort,
+  sortKey,
+  order,
+  onSort,
+  className,
+}: {
+  label: string;
+  currentSort: T;
+  sortKey: T;
+  order: "asc" | "desc";
+  onSort: () => void;
+  className?: string;
+}) {
+  const isActive = currentSort === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={onSort}
+      className={`inline-flex items-center gap-1 font-medium hover:text-foreground ${className ?? ""}`}
+      aria-sort={isActive ? (order === "asc" ? "ascending" : "descending") : undefined}
+    >
+      {label}
+      {isActive ? (order === "asc" ? " ↑" : " ↓") : ""}
+    </button>
+  );
+}
+
+function TablePagination({
+  page,
+  totalPages,
+  totalItems,
+  limit,
+  limitOptions,
+  onPageChange,
+  onLimitChange,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  limit: number;
+  limitOptions: readonly number[];
+  onPageChange: (p: number) => void;
+  onLimitChange: (l: number) => void;
+}) {
+  const from = totalItems === 0 ? 0 : (page - 1) * limit + 1;
+  const to = Math.min(page * limit, totalItems);
+
+  return (
+    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>
+          Showing {from}–{to} of {totalItems}
+        </span>
+        <select
+          className="input-select h-8 w-auto min-w-0 py-1 text-xs"
+          value={limit}
+          onChange={(e) => onLimitChange(Number(e.target.value))}
+          aria-label="Rows per page"
+        >
+          {limitOptions.map((n) => (
+            <option key={n} value={n}>
+              {n} per page
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-9"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          Previous
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-9"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ProductFormDialog({
   product,
   onClose,
@@ -403,15 +721,23 @@ function ProductFormDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{product ? "Edit product" : "New product"}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
+      <Card className="w-full max-w-md max-h-[90vh] flex flex-col shadow-xl">
+        <CardHeader className="flex flex-row items-center justify-between shrink-0 p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl">
+            {product ? "Edit product" : "New product"}
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 touch-manipulation sm:h-9 sm:w-9"
+            onClick={onClose}
+            aria-label="Close"
+          >
             Close
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-y-auto p-4 pt-0 sm:p-6 sm:pt-0">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="name">Name</Label>
@@ -451,11 +777,20 @@ function ProductFormDialog({
                 onChange={(e) => setReorderLevel(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="min-h-11 touch-manipulation sm:min-h-0"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="min-h-11 touch-manipulation sm:min-h-0"
+              >
                 {product ? "Save" : "Create"}
               </Button>
             </div>
@@ -505,15 +840,23 @@ function MovementFormDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Stock movement — {product.name}</CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
+      <Card className="w-full max-w-md max-h-[90vh] flex flex-col shadow-xl">
+        <CardHeader className="flex flex-row items-center justify-between shrink-0 p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl truncate pr-2">
+            Stock movement — {product.name}
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 touch-manipulation shrink-0 sm:h-9 sm:w-9"
+            onClick={onClose}
+            aria-label="Close"
+          >
             Close
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-y-auto p-4 pt-0 sm:p-6 sm:pt-0">
           <p className="mb-4 text-sm text-muted-foreground">
             Current stock: {product.quantity} {product.unit}
           </p>
@@ -521,9 +864,10 @@ function MovementFormDialog({
             <div>
               <Label>Type</Label>
               <select
-                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="input-select mt-2 min-h-11 touch-manipulation sm:min-h-0"
                 value={type}
                 onChange={(e) => setType(e.target.value as "in" | "out" | "adjustment")}
+                aria-label="Movement type"
               >
                 <option value="in">In (receive)</option>
                 <option value="out">Out (dispatch)</option>
@@ -557,11 +901,20 @@ function MovementFormDialog({
               <Label htmlFor="note">Note</Label>
               <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+            <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="min-h-11 touch-manipulation sm:min-h-0"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="min-h-11 touch-manipulation sm:min-h-0"
+              >
                 Record
               </Button>
             </div>

@@ -297,3 +297,69 @@ export const attendanceDays = pgTable("attendance_day", {
   notes: text("notes"), // optional notes
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// --- Customers (Phase 6) ---
+
+/** Customer record: stores customer information for deliveries */
+export const customers = pgTable("customer", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  address: text("address").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  notes: text("notes"), // optional notes about the customer
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// --- Delivery Tracking (Phase 5) ---
+
+export const deliveryStatuses = [
+  "created",
+  "picked",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "failed",
+  "returned",
+] as const;
+export type DeliveryStatus = (typeof deliveryStatuses)[number];
+
+/** Delivery record: materials/orders to sites or customers. */
+export const deliveries = pgTable("delivery", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  trackingNumber: text("tracking_number").notNull().unique(),
+  orderReference: text("order_reference"), // optional: link to order ID
+  customerName: text("customer_name"),
+  customerAddress: text("customer_address").notNull(),
+  customerPhone: text("customer_phone"),
+  customerEmail: text("customer_email"),
+  status: text("status").$type<DeliveryStatus>().notNull().default("created"),
+  notes: text("notes"), // optional notes
+  assignedToUserId: text("assigned_to_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }), // Required: delivery must be assigned to a user
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+/** Delivery status update timeline (TikTok-style tracking). */
+export const deliveryStatusUpdates = pgTable("delivery_status_update", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  deliveryId: text("delivery_id")
+    .notNull()
+    .references(() => deliveries.id, { onDelete: "cascade" }),
+  status: text("status").$type<DeliveryStatus>().notNull(),
+  note: text("note"), // optional note for this status update
+  location: text("location"), // optional location (e.g. "Manila Warehouse", "Quezon City")
+  updatedById: text("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});

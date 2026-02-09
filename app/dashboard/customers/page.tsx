@@ -1,14 +1,14 @@
 import { auth } from "@/lib/auth";
-import { DeliveryDashboard } from "@/components/delivery/delivery-dashboard";
+import { CustomerDashboard } from "@/components/customers/customer-dashboard";
 import type { SessionUser } from "@/lib/auth/permissions";
 
-export default async function DeliveriesPage() {
+export default async function CustomersPage() {
   const session = await auth();
   const user = (session?.user ?? null) as SessionUser | null;
 
   return (
     <div>
-      <DeliveryDashboard user={user} />
+      <CustomerDashboard user={user} />
     </div>
   );
 }

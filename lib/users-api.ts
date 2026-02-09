@@ -6,6 +6,9 @@ export type UserListItem = {
   name: string | null;
   email: string;
   disabled: number;
+  departmentId: string | null;
+  departmentName: string | null;
+  salaryRate: string | null;
   createdAt: string | null;
   roles: string[];
 };

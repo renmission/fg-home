@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { users, userRoles, roles } from "@/lib/db/schema";
+import { users, userRoles, roles, departments } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
@@ -95,9 +95,13 @@ export async function GET(req: NextRequest) {
 
   const total = countResult[0]?.count ?? 0;
   const userIds = rows.map((r) => r.id);
-  const roleRows =
+  const departmentIds = [
+    ...new Set(rows.map((r) => r.departmentId).filter((id): id is string => Boolean(id))),
+  ];
+
+  const [roleRows, departmentRows] = await Promise.all([
     userIds.length > 0
-      ? await db
+      ? db
           .select({
             userId: userRoles.userId,
             roleName: roles.name,
@@ -105,7 +109,15 @@ export async function GET(req: NextRequest) {
           .from(userRoles)
           .innerJoin(roles, eq(userRoles.roleId, roles.id))
           .where(inArray(userRoles.userId, userIds))
-      : [];
+      : [],
+    departmentIds.length > 0
+      ? db
+          .select({ id: departments.id, name: departments.name })
+          .from(departments)
+          .where(inArray(departments.id, departmentIds))
+      : [],
+  ]);
+
   const rolesByUser = new Map<string, string[]>();
   for (const r of roleRows) {
     const arr = rolesByUser.get(r.userId) ?? [];
@@ -113,11 +125,16 @@ export async function GET(req: NextRequest) {
     rolesByUser.set(r.userId, arr);
   }
 
+  const departmentMap = new Map(departmentRows.map((d) => [d.id, d.name]));
+
   const data = rows.map((r) => ({
     id: r.id,
     name: r.name,
     email: r.email,
     disabled: r.disabled,
+    departmentId: r.departmentId ?? null,
+    departmentName: r.departmentId ? (departmentMap.get(r.departmentId) ?? null) : null,
+    salaryRate: r.salaryRate ?? null,
     createdAt: r.createdAt?.toISOString() ?? null,
     roles: rolesByUser.get(r.id) ?? [],
   }));
@@ -141,7 +158,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, password, roleIds } = parsed.data;
+    const { name, email, password, roleIds, departmentId, salaryRate } = parsed.data;
+
+    // departmentId and salaryRate are already transformed to undefined if empty string by schema
 
     // Check if user is trying to assign admin role without being admin
     const isCurrentUserAdmin = user.roles?.includes(ROLES.ADMIN) ?? false;
@@ -172,6 +191,8 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         email: email.trim(),
         passwordHash,
+        departmentId: departmentId || null, // Schema already transforms empty string to undefined
+        salaryRate: salaryRate || null, // Schema already transforms empty string to undefined
       })
       .returning();
 
@@ -199,6 +220,12 @@ export async function POST(req: NextRequest) {
       .where(inArray(roles.id, roleIds));
     const roleNames = roleNamesRows.map((r) => r.name).filter(Boolean);
 
+    const [departmentRow] = await Promise.all([
+      inserted.departmentId
+        ? db.select().from(departments).where(eq(departments.id, inserted.departmentId)).limit(1)
+        : Promise.resolve([]),
+    ]);
+
     return Response.json(
       {
         data: {
@@ -206,6 +233,9 @@ export async function POST(req: NextRequest) {
           name: inserted.name,
           email: inserted.email,
           disabled: inserted.disabled,
+          departmentId: inserted.departmentId ?? null,
+          departmentName: departmentRow[0]?.name ?? null,
+          salaryRate: inserted.salaryRate ?? null,
           createdAt: inserted.createdAt?.toISOString() ?? null,
           roleIds,
           roles: roleNames,

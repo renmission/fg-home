@@ -14,6 +14,8 @@ import {
   stockMovements,
   inventoryCategories,
   inventoryUnits,
+  employees,
+  departments,
 } from "../lib/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -100,8 +102,12 @@ const SAMPLE_CATEGORIES = [
 /** Inventory units (used in Inventory). */
 const SAMPLE_UNITS = ["bag", "box", "cu.m", "gal", "kg", "m", "pcs", "sheet"];
 
+/** Sample departments (used in Users and Employees). */
+const SAMPLE_DEPARTMENTS = ["HR", "IT", "Operations", "Finance", "Sales", "Marketing", "Logistics"];
+
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@fghomes.local";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin123";
+const VIEWER_EMAIL = "viewer@fghomes.local";
 
 async function seed() {
   const roleNames = Object.values(ROLES);
@@ -192,6 +198,97 @@ async function seed() {
       .onConflictDoNothing({ target: inventoryUnits.name });
   }
 
+  // --- Sample departments ---
+  for (const name of SAMPLE_DEPARTMENTS) {
+    await db.insert(departments).values({ name }).onConflictDoNothing({ target: departments.name });
+  }
+
+  // --- Assign departments to existing users based on roles ---
+  const allUsers = await db.select().from(users);
+  const allDepartments = await db.select().from(departments);
+  const allRoles = await db.select().from(roles);
+
+  const departmentMap = new Map(allDepartments.map((d) => [d.name.toLowerCase(), d.id]));
+  const roleMap = new Map(allRoles.map((r) => [r.name, r.id]));
+
+  const ROLE_DEPARTMENT_MAP: Record<string, string> = {
+    admin: "IT",
+    payroll_manager: "Finance",
+    inventory_manager: "Operations",
+    delivery_staff: "Logistics",
+    viewer: "Operations",
+  };
+
+  for (const user of allUsers) {
+    // Skip if user already has a department
+    if (user.departmentId) continue;
+
+    // Get user's roles
+    const userRoleRows = await db
+      .select({ roleName: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, user.id));
+
+    const userRolesList = userRoleRows.map((r) => r.roleName).filter(Boolean);
+    if (userRolesList.length === 0) continue;
+
+    // Find department based on primary role
+    const primaryRole = userRolesList.includes("admin") ? "admin" : (userRolesList[0] ?? "");
+
+    const departmentName = ROLE_DEPARTMENT_MAP[primaryRole];
+    if (!departmentName) continue;
+
+    const departmentId = departmentMap.get(departmentName.toLowerCase());
+    if (!departmentId) continue;
+
+    // Assign department
+    await db.update(users).set({ departmentId }).where(eq(users.id, user.id));
+    console.log(`Assigned ${user.email} (${primaryRole}) → ${departmentName}`);
+  }
+
+  // --- Create employee records for all non-admin users (for attendance module) ---
+  const allUsersForEmployees = await db.select().from(users);
+
+  for (const u of allUsersForEmployees) {
+    if (!u.email) continue;
+
+    // Check if user is admin
+    const userRoleRows = await db
+      .select({ roleName: roles.name })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, u.id));
+
+    const userRolesList = userRoleRows.map((r) => r.roleName).filter(Boolean);
+    const isAdmin = userRolesList.includes(ROLES.ADMIN);
+
+    // Skip admin users (they don't submit attendance)
+    if (isAdmin) continue;
+
+    // Check if employee record already exists
+    const existingEmployee = await db
+      .select()
+      .from(employees)
+      .where(eq(employees.email, u.email))
+      .limit(1);
+
+    if (existingEmployee.length === 0) {
+      // Determine department based on role
+      const primaryRole = userRolesList[0] ?? "viewer";
+      const departmentName = ROLE_DEPARTMENT_MAP[primaryRole] ?? "General";
+
+      await db.insert(employees).values({
+        name: u.name ?? u.email.split("@")[0],
+        email: u.email,
+        department: departmentName,
+        rate: "1000.00", // Default rate
+        active: 1,
+      });
+      console.log(`Created employee record for: ${u.email} (${primaryRole})`);
+    }
+  }
+
   console.log(
     "Seed done. Roles:",
     roleNames.join(", "),
@@ -200,7 +297,9 @@ async function seed() {
     "| Categories:",
     SAMPLE_CATEGORIES.length,
     "| Units:",
-    SAMPLE_UNITS.length
+    SAMPLE_UNITS.length,
+    "| Departments:",
+    SAMPLE_DEPARTMENTS.length
   );
   process.exit(0);
 }

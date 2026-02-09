@@ -38,21 +38,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        const [userRow] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, String(credentials.email)))
-          .limit(1);
-        if (!userRow?.passwordHash) return null;
-        if (userRow.disabled === 1) return null;
-        const ok = await bcrypt.compare(String(credentials.password), userRow.passwordHash);
-        if (!ok) return null;
-        return {
-          id: userRow.id,
-          email: userRow.email,
-          name: userRow.name,
-          image: userRow.image,
-        };
+        try {
+          const [userRow] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, String(credentials.email)))
+            .limit(1);
+          if (!userRow?.passwordHash) return null;
+          // Check if user is disabled (safely handle if column doesn't exist yet - default to enabled)
+          if (userRow.disabled !== undefined && userRow.disabled === 1) return null;
+          const ok = await bcrypt.compare(String(credentials.password), userRow.passwordHash);
+          if (!ok) return null;
+          return {
+            id: userRow.id,
+            email: userRow.email,
+            name: userRow.name,
+            image: userRow.image,
+          };
+        } catch (error) {
+          console.error("[auth] Error during authorization:", error);
+          return null;
+        }
       },
     }),
   ],

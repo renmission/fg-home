@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { users, userRoles, roles } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
-import { PERMISSIONS } from "@/lib/auth/permissions";
+import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { usersListQuerySchema, userCreateSchema } from "@/schemas/users";
 import { and, asc, desc, eq, ilike, or, sql, inArray } from "drizzle-orm";
@@ -142,6 +142,24 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, email, password, roleIds } = parsed.data;
+
+    // Check if user is trying to assign admin role without being admin
+    const isCurrentUserAdmin = user.roles?.includes(ROLES.ADMIN) ?? false;
+    if (!isCurrentUserAdmin) {
+      // Verify none of the roleIds is admin
+      const roleRows = await db
+        .select({ id: roles.id, name: roles.name })
+        .from(roles)
+        .where(inArray(roles.id, roleIds));
+      const hasAdminRole = roleRows.some((r) => r.name === ROLES.ADMIN);
+      if (hasAdminRole) {
+        return Response.json(
+          { error: "Only administrators can assign the admin role" },
+          { status: 403 }
+        );
+      }
+    }
+
     const [existing] = await db.select().from(users).where(eq(users.email, email.trim())).limit(1);
     if (existing) {
       return Response.json({ error: "A user with this email already exists" }, { status: 409 });

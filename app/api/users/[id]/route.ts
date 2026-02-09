@@ -2,10 +2,10 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { users, userRoles, roles } from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
-import { PERMISSIONS } from "@/lib/auth/permissions";
+import { PERMISSIONS, ROLES } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { userUpdateSchema } from "@/schemas/users";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { logUserAudit } from "@/lib/audit";
 
@@ -118,6 +118,23 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
 
     if (parsed.data.roleIds !== undefined) {
+      // Check if user is trying to assign admin role without being admin
+      const isCurrentUserAdmin = user.roles?.includes(ROLES.ADMIN) ?? false;
+      if (!isCurrentUserAdmin) {
+        // Verify none of the roleIds is admin
+        const roleRows = await db
+          .select({ id: roles.id, name: roles.name })
+          .from(roles)
+          .where(inArray(roles.id, parsed.data.roleIds));
+        const hasAdminRole = roleRows.some((r) => r.name === ROLES.ADMIN);
+        if (hasAdminRole) {
+          return Response.json(
+            { error: "Only administrators can assign the admin role" },
+            { status: 403 }
+          );
+        }
+      }
+
       await db.delete(userRoles).where(eq(userRoles.userId, id));
       for (const roleId of parsed.data.roleIds) {
         await db.insert(userRoles).values({ userId: id, roleId });

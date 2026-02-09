@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
+import type React from "react";
 import {
   fetchUsers,
   fetchUser,
@@ -27,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getErrorMessage } from "@/lib/errors";
-import { PERMISSIONS, can, type SessionUser } from "@/lib/auth/permissions";
+import { PERMISSIONS, can, ROLES, type SessionUser } from "@/lib/auth/permissions";
 
 const USERS_KEY = ["users"];
 const ROLES_KEY = ["roles"];
@@ -40,6 +41,76 @@ function useDebouncedValue<T>(value: T, delay: number): T {
     return () => clearTimeout(t);
   }, [value, delay]);
   return debounced;
+}
+
+function formatAuditAction(action: string): string {
+  // Convert "user.created" -> "User Created", "user.roles_changed" -> "Roles Changed", etc.
+  const cleaned = action.replace(/^user\./, "");
+  const words = cleaned.split("_");
+  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function formatAuditDetails(details: string | null): React.ReactNode {
+  if (!details) return "—";
+
+  try {
+    const parsed = JSON.parse(details);
+
+    // Handle array of strings (e.g., changed fields)
+    if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return "—";
+      return (
+        <span className="text-xs">
+          Changed: {parsed.map((item) => item.replace(/([A-Z])/g, " $1").trim()).join(", ")}
+        </span>
+      );
+    }
+
+    // Handle object
+    if (typeof parsed === "object" && parsed !== null) {
+      const entries = Object.entries(parsed);
+      if (entries.length === 0) return "—";
+
+      return (
+        <div className="space-y-1">
+          {entries.map(([key, value]) => {
+            const displayKey = key
+              .replace(/([A-Z])/g, " $1")
+              .replace(/^./, (s) => s.toUpperCase())
+              .trim();
+
+            let displayValue: string;
+            if (key === "roleIds" && Array.isArray(value)) {
+              // For roleIds, we'd need role names, but for now just show count
+              displayValue = `${value.length} role${value.length !== 1 ? "s" : ""} assigned`;
+            } else if (Array.isArray(value)) {
+              displayValue = value.join(", ");
+            } else if (typeof value === "string" && value.length > 50) {
+              displayValue = `${value.substring(0, 50)}...`;
+            } else {
+              displayValue = String(value);
+            }
+
+            return (
+              <div key={key} className="text-xs">
+                <span className="font-medium">{displayKey}:</span>{" "}
+                <span className="text-muted-foreground">{displayValue}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+  } catch {
+    // Not JSON, return as-is but truncate if too long
+    return (
+      <span className="text-xs">
+        {details.length > 100 ? `${details.substring(0, 100)}...` : details}
+      </span>
+    );
+  }
+
+  return <span className="text-xs">{details}</span>;
 }
 
 function SortableHeader({
@@ -136,8 +207,11 @@ function TablePagination({
   );
 }
 
+type Tab = "users" | "audit";
+
 export function UserManagementDashboard({ user }: { user: SessionUser | null }) {
   const canWrite = user ? can(user, PERMISSIONS.USERS_WRITE) : false;
+  const [tab, setTab] = useState<Tab>("users");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -146,7 +220,6 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
   const [sortBy, setSortBy] = useState<"name" | "email" | "createdAt">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [dialog, setDialog] = useState<"create" | UserListItem | null>(null);
-  const [auditOpen, setAuditOpen] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search, 300);
   const queryClient = useQueryClient();
@@ -184,9 +257,9 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
   });
 
   const { data: auditData } = useQuery({
-    queryKey: ["users", "audit", { limit: 20 }],
-    queryFn: () => fetchUserAudit({ limit: 20 }),
-    enabled: auditOpen,
+    queryKey: ["users", "audit", { limit: 50 }],
+    queryFn: () => fetchUserAudit({ limit: 50 }),
+    enabled: tab === "audit",
   });
 
   const roles = rolesData?.data ?? [];
@@ -229,7 +302,7 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold sm:text-2xl">User management</h1>
-        {canWrite && (
+        {canWrite && tab === "users" && (
           <Button
             onClick={() => setDialog("create")}
             className="w-full min-h-11 touch-manipulation sm:w-auto sm:min-h-0"
@@ -239,195 +312,217 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
         )}
       </div>
 
-      <Card>
-        <CardHeader className="pb-4 p-4 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-            <Input
-              placeholder="Search by name or email..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full min-h-11 touch-manipulation sm:max-w-xs sm:min-h-0"
-              aria-label="Search users"
-            />
-            <select
-              className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[10rem] sm:min-h-0"
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value);
-                setPage(1);
-              }}
-              aria-label="Filter by role"
+      <div className="border-b border-border overflow-x-auto">
+        <div className="flex gap-0 min-w-0" role="tablist" aria-label="User management sections">
+          {(["users", "audit"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              className={`min-h-11 touch-manipulation flex-shrink-0 rounded-t-md border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                tab === t
+                  ? "border-primary bg-muted/50 text-foreground"
+                  : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+              }`}
+              onClick={() => setTab(t)}
             >
-              <option value="">All roles</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.name}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[8rem] sm:min-h-0"
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as "all" | "enabled" | "disabled");
-                setPage(1);
-              }}
-              aria-label="Filter by status"
-            >
-              <option value="enabled">Enabled</option>
-              <option value="disabled">Disabled</option>
-              <option value="all">All</option>
-            </select>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          {usersLoading ? (
-            <p className="text-muted-foreground">Loading…</p>
-          ) : (
-            <>
-              <div className="overflow-x-auto rounded-md border border-border">
-                <Table>
-                  <colgroup>
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "28%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "13%" }} />
-                    {canWrite && <col style={{ width: "15%" }} />}
-                  </colgroup>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <SortableHeader
-                          label="Name"
-                          currentSort={sortBy}
-                          sortKey="name"
-                          order={sortOrder}
-                          onSort={() => handleSort("name")}
-                        />
-                      </TableHead>
-                      <TableHead>
-                        <SortableHeader
-                          label="Email"
-                          currentSort={sortBy}
-                          sortKey="email"
-                          order={sortOrder}
-                          onSort={() => handleSort("email")}
-                        />
-                      </TableHead>
-                      <TableHead>Roles</TableHead>
-                      <TableHead>Status</TableHead>
-                      {canWrite && <TableHead>Actions</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={canWrite ? 5 : 4}
-                          className="text-center text-muted-foreground py-8"
-                        >
-                          No users found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      users.map((u) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="font-medium">{u.name ?? "—"}</TableCell>
-                          <TableCell>{u.email}</TableCell>
-                          <TableCell>{u.roles.length ? u.roles.join(", ") : "—"}</TableCell>
-                          <TableCell>{u.disabled === 1 ? "Disabled" : "Enabled"}</TableCell>
-                          {canWrite && (
-                            <TableCell className="whitespace-nowrap">
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => setDialog(u)}>
-                                  Edit
-                                </Button>
-                                {u.disabled === 1 ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      updateMutation.mutate({
-                                        id: u.id,
-                                        body: { disabled: 0 },
-                                      })
-                                    }
-                                    disabled={updateMutation.isPending}
-                                  >
-                                    Enable
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive"
-                                    onClick={() => {
-                                      if (
-                                        confirm(
-                                          `Disable "${u.name ?? u.email}"? They will not be able to sign in.`
-                                        )
-                                      )
-                                        updateMutation.mutate({
-                                          id: u.id,
-                                          body: { disabled: 1 },
-                                        });
-                                    }}
-                                    disabled={updateMutation.isPending}
-                                  >
-                                    Disable
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              <TablePagination
-                page={page}
-                totalPages={totalPages}
-                totalItems={total}
-                limit={limit}
-                limitOptions={PAGE_SIZE_OPTIONS}
-                onPageChange={setPage}
-                onLimitChange={(l) => {
-                  setLimit(l);
+              {t === "users" ? "Users" : "Audit log"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "users" && (
+        <Card>
+          <CardHeader className="pb-4 p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <Input
+                placeholder="Search by name or email..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
                   setPage(1);
                 }}
+                className="w-full min-h-11 touch-manipulation sm:max-w-xs sm:min-h-0"
+                aria-label="Search users"
               />
-            </>
-          )}
-        </CardContent>
-      </Card>
+              <select
+                className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[10rem] sm:min-h-0"
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Filter by role"
+              >
+                <option value="">All roles</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.name}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[8rem] sm:min-h-0"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as "all" | "enabled" | "disabled");
+                  setPage(1);
+                }}
+                aria-label="Filter by status"
+              >
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            {usersLoading ? (
+              <p className="text-muted-foreground">Loading…</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <Table>
+                    <colgroup>
+                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "28%" }} />
+                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "13%" }} />
+                      {canWrite && <col style={{ width: "15%" }} />}
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <SortableHeader
+                            label="Name"
+                            currentSort={sortBy}
+                            sortKey="name"
+                            order={sortOrder}
+                            onSort={() => handleSort("name")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Email"
+                            currentSort={sortBy}
+                            sortKey="email"
+                            order={sortOrder}
+                            onSort={() => handleSort("email")}
+                          />
+                        </TableHead>
+                        <TableHead>Roles</TableHead>
+                        <TableHead>Status</TableHead>
+                        {canWrite && <TableHead>Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={canWrite ? 5 : 4}
+                            className="text-center text-muted-foreground py-8"
+                          >
+                            No users found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        users.map((u) => (
+                          <TableRow key={u.id}>
+                            <TableCell className="font-medium">{u.name ?? "—"}</TableCell>
+                            <TableCell>{u.email}</TableCell>
+                            <TableCell>{u.roles.length ? u.roles.join(", ") : "—"}</TableCell>
+                            <TableCell>{u.disabled === 1 ? "Disabled" : "Enabled"}</TableCell>
+                            {canWrite && (
+                              <TableCell className="whitespace-nowrap">
+                                <div className="flex gap-1">
+                                  <Button variant="ghost" size="sm" onClick={() => setDialog(u)}>
+                                    Edit
+                                  </Button>
+                                  {u.disabled === 1 ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        updateMutation.mutate({
+                                          id: u.id,
+                                          body: { disabled: 0 },
+                                        })
+                                      }
+                                      disabled={updateMutation.isPending}
+                                    >
+                                      Enable
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        if (
+                                          confirm(
+                                            `Disable "${u.name ?? u.email}"? They will not be able to sign in.`
+                                          )
+                                        )
+                                          updateMutation.mutate({
+                                            id: u.id,
+                                            body: { disabled: 1 },
+                                          });
+                                      }}
+                                      disabled={updateMutation.isPending}
+                                    >
+                                      Disable
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <TablePagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={total}
+                  limit={limit}
+                  limitOptions={PAGE_SIZE_OPTIONS}
+                  onPageChange={setPage}
+                  onLimitChange={(l) => {
+                    setLimit(l);
+                    setPage(1);
+                  }}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader className="p-4 sm:p-6">
-          <button
-            type="button"
-            onClick={() => setAuditOpen((o) => !o)}
-            className="flex items-center gap-2 text-left w-full"
-            aria-expanded={auditOpen}
-          >
-            <CardTitle className="text-base">Recent audit log</CardTitle>
-            <span className="text-muted-foreground text-sm">{auditOpen ? "▼" : "▶"}</span>
-          </button>
-        </CardHeader>
-        {auditOpen && (
+      {tab === "audit" && (
+        <Card>
+          <CardHeader className="pb-4 p-4 sm:p-6">
+            <CardTitle className="text-base">Audit log</CardTitle>
+          </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {auditEntries.length === 0 ? (
               <p className="text-muted-foreground text-sm">No audit entries yet.</p>
             ) : (
               <div className="overflow-x-auto rounded-md border border-border">
                 <Table>
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "28%" }} />
+                  </colgroup>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[140px]">Time</TableHead>
+                      <TableHead>Time</TableHead>
                       <TableHead>Action</TableHead>
                       <TableHead>Actor</TableHead>
                       <TableHead>Target user</TableHead>
@@ -440,11 +535,11 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
                         <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                           {new Date(e.createdAt).toLocaleString()}
                         </TableCell>
-                        <TableCell className="font-mono text-sm">{e.action}</TableCell>
+                        <TableCell className="text-sm">{formatAuditAction(e.action)}</TableCell>
                         <TableCell>{e.actorEmail ?? e.actorName ?? "—"}</TableCell>
                         <TableCell>{e.targetEmail ?? e.targetName ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                          {e.details ?? "—"}
+                        <TableCell className="text-muted-foreground text-sm">
+                          {formatAuditDetails(e.details)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -453,13 +548,14 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
               </div>
             )}
           </CardContent>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {dialog !== null && (
         <UserFormDialog
           user={dialog === "create" ? null : dialog}
           roles={roles}
+          currentUser={user}
           onClose={() => setDialog(null)}
           onSubmit={(body) => {
             if (dialog === "create") {
@@ -491,6 +587,7 @@ export function UserManagementDashboard({ user }: { user: SessionUser | null }) 
 function UserFormDialog({
   user,
   roles,
+  currentUser,
   onClose,
   onSubmit,
   isSubmitting,
@@ -498,11 +595,15 @@ function UserFormDialog({
 }: {
   user: UserListItem | null;
   roles: RoleOption[];
+  currentUser: SessionUser | null;
   onClose: () => void;
   onSubmit: (body: UserCreateValues | (UserUpdateValues & { password?: string })) => void;
   isSubmitting: boolean;
   error: string | null;
 }) {
+  // Filter out admin role if current user is not an admin
+  const isCurrentUserAdmin = currentUser?.roles?.includes(ROLES.ADMIN) ?? false;
+  const availableRoles = isCurrentUserAdmin ? roles : roles.filter((r) => r.name !== ROLES.ADMIN);
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
@@ -523,10 +624,17 @@ function UserFormDialog({
       setDetail(userDetail.data);
       setName(userDetail.data.name ?? "");
       setEmail(userDetail.data.email);
-      setRoleIds(userDetail.data.roleIds);
+      // Filter out admin role if current user is not admin
+      const filteredRoleIds = isCurrentUserAdmin
+        ? userDetail.data.roleIds
+        : userDetail.data.roleIds.filter((id) => {
+            const role = roles.find((r) => r.id === id);
+            return role?.name !== ROLES.ADMIN;
+          });
+      setRoleIds(filteredRoleIds);
       setDisabled(userDetail.data.disabled as 0 | 1);
     }
-  }, [userDetail]);
+  }, [userDetail, isCurrentUserAdmin, roles]);
 
   const toggleRole = (roleId: string) => {
     setRoleIds((prev) =>
@@ -536,16 +644,24 @@ function UserFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Ensure admin role is not included if current user is not admin
+    const filteredRoleIds = isCurrentUserAdmin
+      ? roleIds
+      : roleIds.filter((id) => {
+          const role = roles.find((r) => r.id === id);
+          return role?.name !== ROLES.ADMIN;
+        });
+
     if (isEdit) {
       onSubmit({
         name: name.trim(),
         email: email.trim(),
         password: password.length >= 8 ? password : undefined,
-        roleIds,
+        roleIds: filteredRoleIds,
         disabled,
       });
     } else {
-      if (roleIds.length === 0) {
+      if (filteredRoleIds.length === 0) {
         return;
       }
       if (password.length < 8) {
@@ -555,7 +671,7 @@ function UserFormDialog({
         name: name.trim(),
         email: email.trim(),
         password,
-        roleIds,
+        roleIds: filteredRoleIds,
       });
     }
   };
@@ -623,7 +739,7 @@ function UserFormDialog({
               <div>
                 <Label>Roles</Label>
                 <div className="mt-2 flex flex-wrap gap-3">
-                  {roles.map((r) => (
+                  {availableRoles.map((r) => (
                     <label key={r.id} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -635,7 +751,10 @@ function UserFormDialog({
                     </label>
                   ))}
                 </div>
-                {!isEdit && roleIds.length === 0 && (
+                {availableRoles.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-1">No roles available.</p>
+                )}
+                {!isEdit && roleIds.length === 0 && availableRoles.length > 0 && (
                   <p className="text-sm text-destructive mt-1">Select at least one role.</p>
                 )}
               </div>

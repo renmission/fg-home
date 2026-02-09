@@ -15,6 +15,9 @@ export const PERMISSIONS = {
   DELIVERIES_READ: "deliveries:read",
   DELIVERIES_UPDATE_STATUS: "deliveries:update_status",
   DELIVERIES_WRITE: "deliveries:write",
+  // Settings (admin only)
+  SETTINGS_READ: "settings:read",
+  SETTINGS_WRITE: "settings:write",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

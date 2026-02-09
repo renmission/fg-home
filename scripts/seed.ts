@@ -1,13 +1,104 @@
 /**
- * Seed script: creates roles and an admin user for development.
+ * Seed script: creates roles, an admin user, and sample inventory for development.
  * Run: pnpm db:seed
  * Requires DATABASE_URL and optionally ADMIN_EMAIL, ADMIN_PASSWORD in env.
  */
 import "dotenv/config";
-import { db, users, roles, userRoles } from "../lib/db";
+import {
+  db,
+  users,
+  roles,
+  userRoles,
+  products,
+  stockLevels,
+  stockMovements,
+  inventoryCategories,
+  inventoryUnits,
+} from "../lib/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { ROLES } from "../lib/auth/permissions";
+
+/** Sample inventory items (construction materials & supplies). */
+const SAMPLE_PRODUCTS = [
+  {
+    sku: "CEM-50",
+    name: "Portland Cement 50kg",
+    category: "Cement",
+    unit: "bag",
+    reorderLevel: 20,
+  },
+  {
+    sku: "CEM-40",
+    name: "Portland Cement 40kg",
+    category: "Cement",
+    unit: "bag",
+    reorderLevel: 15,
+  },
+  { sku: "SND-1", name: "Sand (cu.m)", category: "Aggregates", unit: "cu.m", reorderLevel: 5 },
+  { sku: "GRV-1", name: "Gravel (cu.m)", category: "Aggregates", unit: "cu.m", reorderLevel: 5 },
+  { sku: "RBR-10", name: "Rebar 10mm x 6m", category: "Steel", unit: "pcs", reorderLevel: 50 },
+  { sku: "RBR-12", name: "Rebar 12mm x 6m", category: "Steel", unit: "pcs", reorderLevel: 40 },
+  { sku: "PLY-4x8", name: "Plywood 4x8 ft", category: "Lumber", unit: "sheet", reorderLevel: 30 },
+  { sku: "LBR-2x4x8", name: "Lumber 2x4x8", category: "Lumber", unit: "pcs", reorderLevel: 100 },
+  { sku: "LBR-2x6x8", name: "Lumber 2x6x8", category: "Lumber", unit: "pcs", reorderLevel: 80 },
+  { sku: "NIL-2", name: 'Common Nails 2"', category: "Hardware", unit: "kg", reorderLevel: 25 },
+  { sku: "NIL-3", name: 'Common Nails 3"', category: "Hardware", unit: "kg", reorderLevel: 20 },
+  { sku: "PVC-4", name: 'PVC Pipe 4"', category: "Plumbing", unit: "pcs", reorderLevel: 30 },
+  { sku: "PVC-2", name: 'PVC Pipe 2"', category: "Plumbing", unit: "pcs", reorderLevel: 50 },
+  {
+    sku: "WIR-12",
+    name: "Electrical Wire 12 AWG",
+    category: "Electrical",
+    unit: "m",
+    reorderLevel: 200,
+  },
+  {
+    sku: "WIR-14",
+    name: "Electrical Wire 14 AWG",
+    category: "Electrical",
+    unit: "m",
+    reorderLevel: 200,
+  },
+  {
+    sku: "PNT-W1",
+    name: "White Latex Paint 1gal",
+    category: "Paint",
+    unit: "gal",
+    reorderLevel: 20,
+  },
+  {
+    sku: "PNT-W4",
+    name: "White Latex Paint 4gal",
+    category: "Paint",
+    unit: "gal",
+    reorderLevel: 10,
+  },
+  {
+    sku: "TIL-30x30",
+    name: "Floor Tile 30x30cm",
+    category: "Tiles",
+    unit: "box",
+    reorderLevel: 50,
+  },
+  { sku: "GRT-25", name: "Grout 25kg", category: "Tiles", unit: "bag", reorderLevel: 10 },
+];
+
+/** Inventory categories (used in Inventory). */
+const SAMPLE_CATEGORIES = [
+  "Aggregates",
+  "Cement",
+  "Electrical",
+  "Hardware",
+  "Lumber",
+  "Paint",
+  "Plumbing",
+  "Steel",
+  "Tiles",
+];
+
+/** Inventory units (used in Inventory). */
+const SAMPLE_UNITS = ["bag", "box", "cu.m", "gal", "kg", "m", "pcs", "sheet"];
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@fghomes.local";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin123";
@@ -16,10 +107,7 @@ async function seed() {
   const roleNames = Object.values(ROLES);
 
   for (const name of roleNames) {
-    await db
-      .insert(roles)
-      .values({ name })
-      .onConflictDoNothing({ target: roles.name });
+    await db.insert(roles).values({ name }).onConflictDoNothing({ target: roles.name });
   }
 
   const roleRows = await db.select().from(roles).where(eq(roles.name, ROLES.ADMIN));
@@ -39,19 +127,81 @@ async function seed() {
       })
       .returning({ id: users.id });
     if (inserted?.id) {
-      await db.insert(userRoles).values({ userId: inserted.id, roleId: adminRoleId }).onConflictDoNothing({ target: [userRoles.userId, userRoles.roleId] });
+      await db
+        .insert(userRoles)
+        .values({ userId: inserted.id, roleId: adminRoleId })
+        .onConflictDoNothing({ target: [userRoles.userId, userRoles.roleId] });
       console.log("Created admin user:", ADMIN_EMAIL);
     }
   } else {
     await db.update(users).set({ passwordHash }).where(eq(users.id, existing[0].id));
     const ur = await db.select().from(userRoles).where(eq(userRoles.userId, existing[0].id));
     if (ur.length === 0) {
-      await db.insert(userRoles).values({ userId: existing[0].id, roleId: adminRoleId }).onConflictDoNothing({ target: [userRoles.userId, userRoles.roleId] });
+      await db
+        .insert(userRoles)
+        .values({ userId: existing[0].id, roleId: adminRoleId })
+        .onConflictDoNothing({ target: [userRoles.userId, userRoles.roleId] });
     }
     console.log("Updated existing admin user:", ADMIN_EMAIL);
   }
 
-  console.log("Seed done. Roles:", roleNames.join(", "));
+  // --- Sample inventory ---
+  for (const p of SAMPLE_PRODUCTS) {
+    const [inserted] = await db
+      .insert(products)
+      .values({
+        name: p.name,
+        sku: p.sku,
+        category: p.category,
+        unit: p.unit,
+        reorderLevel: p.reorderLevel,
+      })
+      .onConflictDoNothing({ target: products.sku })
+      .returning({ id: products.id });
+    if (inserted?.id) {
+      await db.insert(stockLevels).values({
+        productId: inserted.id,
+        quantity: Math.floor(Math.random() * 80) + 10,
+      });
+    }
+  }
+
+  const productRows = await db.select({ id: products.id }).from(products);
+  const adminId = existing.length > 0 ? existing[0].id : null;
+  for (let i = 0; i < Math.min(5, productRows.length); i++) {
+    await db.insert(stockMovements).values({
+      productId: productRows[i]!.id,
+      type: "in",
+      quantity: 40 + i * 15,
+      reference: "SEED-IN",
+      note: "Initial stock",
+      createdById: adminId ?? undefined,
+    });
+  }
+
+  for (const name of SAMPLE_CATEGORIES) {
+    await db
+      .insert(inventoryCategories)
+      .values({ name })
+      .onConflictDoNothing({ target: inventoryCategories.name });
+  }
+  for (const name of SAMPLE_UNITS) {
+    await db
+      .insert(inventoryUnits)
+      .values({ name })
+      .onConflictDoNothing({ target: inventoryUnits.name });
+  }
+
+  console.log(
+    "Seed done. Roles:",
+    roleNames.join(", "),
+    "| Products:",
+    SAMPLE_PRODUCTS.length,
+    "| Categories:",
+    SAMPLE_CATEGORIES.length,
+    "| Units:",
+    SAMPLE_UNITS.length
+  );
   process.exit(0);
 }
 

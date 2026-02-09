@@ -97,6 +97,31 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
       }),
   });
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ["settings", "categories"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/categories");
+      if (!res.ok) return [];
+      const json = await res.json();
+      return (json.data ?? []) as { id: string; name: string }[];
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+  const { data: unitsData } = useQuery({
+    queryKey: ["settings", "units"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/units");
+      if (!res.ok) return [];
+      const json = await res.json();
+      return (json.data ?? []) as { id: string; name: string }[];
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+  const categories = categoriesData?.map((c) => c.name) ?? [];
+  const units = unitsData?.map((u) => u.name) ?? [];
+
   const { data: movementsData, isLoading: movementsLoading } = useQuery({
     queryKey: [
       ...MOVEMENTS_QUERY_KEY,
@@ -285,16 +310,25 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                     <option value="archived">Archived</option>
                     <option value="all">All</option>
                   </select>
-                  <Input
-                    placeholder="Category"
+                  <select
+                    className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[10rem] sm:min-h-0"
                     value={productCategory}
                     onChange={(e) => {
                       setProductCategory(e.target.value);
                       setProductPage(1);
                     }}
-                    className="w-full min-h-11 max-w-[10rem] sm:min-h-0"
                     aria-label="Filter by category"
-                  />
+                  >
+                    <option value="">All categories</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {productCategory.trim() && !categories.includes(productCategory) && (
+                      <option value={productCategory}>{productCategory}</option>
+                    )}
+                  </select>
                 </div>
               </div>
             </div>
@@ -569,6 +603,8 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
       {productDialog !== null && (
         <ProductFormDialog
           product={productDialog === "create" ? null : productDialog}
+          categories={categories}
+          units={units}
           onClose={() => setProductDialog(null)}
           onSubmit={(body) => {
             if (productDialog === "create") {
@@ -693,11 +729,15 @@ function TablePagination({
 
 function ProductFormDialog({
   product,
+  categories,
+  units,
   onClose,
   onSubmit,
   isSubmitting,
 }: {
   product: ProductListItem | null;
+  categories: string[];
+  units: string[];
   onClose: () => void;
   onSubmit: (body: ProductFormValues) => void;
   isSubmitting: boolean;
@@ -705,8 +745,14 @@ function ProductFormDialog({
   const [name, setName] = useState(product?.name ?? "");
   const [sku, setSku] = useState(product?.sku ?? "");
   const [category, setCategory] = useState(product?.category ?? "");
-  const [unit, setUnit] = useState(product?.unit ?? "pcs");
+  const [unit, setUnit] = useState(product?.unit ?? (units.length > 0 ? units[0] : "pcs"));
   const [reorderLevel, setReorderLevel] = useState(String(product?.reorderLevel ?? 0));
+  const categoryOptions: string[] = [
+    ...new Set([...categories, product?.category].filter((x): x is string => Boolean(x))),
+  ];
+  const unitOptions: string[] = [
+    ...new Set([...units, product?.unit ?? "pcs"].filter((x): x is string => Boolean(x))),
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -734,7 +780,7 @@ function ProductFormDialog({
             onClick={onClose}
             aria-label="Close"
           >
-            Close
+            <span className="text-xl font-semibold leading-none sm:text-2xl">×</span>
           </Button>
         </CardHeader>
         <CardContent className="overflow-y-auto p-4 pt-0 sm:p-6 sm:pt-0">
@@ -755,17 +801,57 @@ function ProductFormDialog({
             </div>
             <div>
               <Label htmlFor="category">Category</Label>
-              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} />
+              {categoryOptions.length > 0 ? (
+                <select
+                  id="category"
+                  className="input-select mt-2 w-full"
+                  value={category ?? ""}
+                  onChange={(e) => setCategory(e.target.value)}
+                  aria-label="Category"
+                >
+                  <option value="">—</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="mt-2"
+                />
+              )}
             </div>
             <div>
               <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                placeholder="pcs, kg, bag..."
-                required
-              />
+              {unitOptions.length > 0 ? (
+                <select
+                  id="unit"
+                  className="input-select mt-2 w-full"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  required
+                  aria-label="Unit"
+                >
+                  {unitOptions.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="unit"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="pcs, kg, bag..."
+                  required
+                  className="mt-2"
+                />
+              )}
             </div>
             <div>
               <Label htmlFor="reorderLevel">Reorder level</Label>
@@ -853,7 +939,7 @@ function MovementFormDialog({
             onClick={onClose}
             aria-label="Close"
           >
-            Close
+            <span className="text-xl font-semibold leading-none sm:text-2xl">×</span>
           </Button>
         </CardHeader>
         <CardContent className="overflow-y-auto p-4 pt-0 sm:p-6 sm:pt-0">

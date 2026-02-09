@@ -118,3 +118,21 @@ export const stockMovements = pgTable("stock_movement", {
   createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// --- Settings: reference data used in Inventory ---
+
+export const inventoryCategories = pgTable("inventory_category", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const inventoryUnits = pgTable("inventory_unit", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(), // e.g. "pcs", "kg", "bag"
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});

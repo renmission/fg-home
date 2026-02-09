@@ -1,10 +1,14 @@
-export default function PayrollPage() {
+import { auth } from "@/lib/auth";
+import { PayrollDashboard } from "@/components/payroll/payroll-dashboard";
+import type { SessionUser } from "@/lib/auth/permissions";
+
+export default async function PayrollPage() {
+  const session = await auth();
+  const user = (session?.user ?? null) as SessionUser | null;
+
   return (
     <div>
-      <h1 className="text-xl font-semibold sm:text-2xl">Payroll</h1>
-      <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-        Employee and payslip management (Phase 3).
-      </p>
+      <PayrollDashboard user={user} />
     </div>
   );
 }

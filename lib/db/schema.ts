@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, primaryKey, date, decimal } from "drizzle-orm/pg-core";
 import type { AdapterAccount } from "next-auth/adapters";
 
 // --- Auth.js (NextAuth) tables ---
@@ -134,5 +134,104 @@ export const inventoryUnits = pgTable("inventory_unit", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(), // e.g. "pcs", "kg", "bag"
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// --- Payroll (Phase 3) ---
+
+export const employees = pgTable("employee", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  email: text("email"),
+  department: text("department"), // role/department
+  rate: decimal("rate", { precision: 12, scale: 2 }).notNull(), // pay rate (e.g. per hour or per period)
+  bankName: text("bank_name"),
+  bankAccount: text("bank_account"),
+  active: integer("active").notNull().default(1), // 1 = active, 0 = inactive
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const payPeriodTypes = ["weekly", "bi_weekly", "monthly"] as const;
+export type PayPeriodType = (typeof payPeriodTypes)[number];
+
+export const payPeriods = pgTable("pay_period", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  startDate: date("start_date", { mode: "string" }).notNull(),
+  endDate: date("end_date", { mode: "string" }).notNull(),
+  payDate: date("pay_date", { mode: "string" }).notNull(),
+  type: text("type").$type<PayPeriodType>().notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const payrollRunStatuses = ["draft", "finalized"] as const;
+export type PayrollRunStatus = (typeof payrollRunStatuses)[number];
+
+export const payrollRuns = pgTable("payroll_run", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  payPeriodId: text("pay_period_id")
+    .notNull()
+    .references(() => payPeriods.id, { onDelete: "cascade" }),
+  status: text("status").$type<PayrollRunStatus>().notNull().default("draft"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+});
+
+export const payslipStatuses = ["draft", "final"] as const;
+export type PayslipStatus = (typeof payslipStatuses)[number];
+
+export const payslips = pgTable("payslip", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  payrollRunId: text("payroll_run_id")
+    .notNull()
+    .references(() => payrollRuns.id, { onDelete: "cascade" }),
+  employeeId: text("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  grossPay: decimal("gross_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+  totalDeductions: decimal("total_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
+  netPay: decimal("net_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+  status: text("status").$type<PayslipStatus>().notNull().default("draft"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const earningTypes = ["regular", "overtime", "bonus", "allowance"] as const;
+export type EarningType = (typeof earningTypes)[number];
+
+export const earnings = pgTable("earning", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  payslipId: text("payslip_id")
+    .notNull()
+    .references(() => payslips.id, { onDelete: "cascade" }),
+  type: text("type").$type<EarningType>().notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const deductionTypes = ["tax", "sss", "philhealth", "pagibig", "loan", "other"] as const;
+export type DeductionType = (typeof deductionTypes)[number];
+
+export const deductions = pgTable("deduction", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  payslipId: text("payslip_id")
+    .notNull()
+    .references(() => payslips.id, { onDelete: "cascade" }),
+  type: text("type").$type<DeductionType>().notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  description: text("description"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

@@ -130,6 +130,7 @@ export const products = pgTable(
     sku: text("sku").notNull().unique(),
     category: text("category"),
     unit: text("unit").notNull(), // e.g. "pcs", "kg", "bag"
+    listPrice: decimal("list_price", { precision: 12, scale: 2 }), // optional; used as default in POS
     reorderLevel: integer("reorder_level").notNull().default(0),
     archived: integer("archived").notNull().default(0), // 0 = active, 1 = archived
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
@@ -477,5 +478,87 @@ export const notifications = pgTable(
     userIdIdx: index("notification_user_id_idx").on(table.userId),
     readIdx: index("notification_read_idx").on(table.read),
     createdAtIdx: index("notification_created_at_idx").on(table.createdAt),
+  })
+);
+
+// --- POS (Phase 7) ---
+
+export const saleStatuses = ["draft", "held", "completed", "voided"] as const;
+export type SaleStatus = (typeof saleStatuses)[number];
+
+export const discountTypes = ["percent", "fixed"] as const;
+export type DiscountType = (typeof discountTypes)[number];
+
+export const paymentMethods = ["cash", "card", "other", "gcash", "google_pay", "paymaya"] as const;
+export type PaymentMethod = (typeof paymentMethods)[number];
+
+/** Sale (transaction). draft/held = cart; completed = finalized; voided = cancelled. */
+export const sales = pgTable(
+  "sale",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    status: text("status").$type<SaleStatus>().notNull().default("draft"),
+    subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+    discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    discountType: text("discount_type").$type<DiscountType>(), // percent | fixed; null = no sale-level discount
+    total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+    createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index("sale_status_idx").on(table.status),
+    createdByIdIdx: index("sale_created_by_id_idx").on(table.createdById),
+    createdAtIdx: index("sale_created_at_idx").on(table.createdAt),
+  })
+);
+
+/** Line item: product + quantity + unit price + optional line discount. */
+export const saleLineItems = pgTable(
+  "sale_line_item",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => sales.id, { onDelete: "cascade" }),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+    lineDiscountAmount: decimal("line_discount_amount", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
+    lineDiscountType: text("line_discount_type").$type<DiscountType>(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => ({
+    saleIdIdx: index("sale_line_item_sale_id_idx").on(table.saleId),
+    productIdIdx: index("sale_line_item_product_id_idx").on(table.productId),
+  })
+);
+
+/** Payment (tender): one or more per sale (e.g. partial cash + card). Reference required for GCash, Google Pay, PayMaya. */
+export const payments = pgTable(
+  "payment",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => sales.id, { onDelete: "cascade" }),
+    method: text("method").$type<PaymentMethod>().notNull(),
+    amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+    reference: text("reference"), // required for gcash, google_pay, paymaya
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => ({
+    saleIdIdx: index("payment_sale_id_idx").on(table.saleId),
   })
 );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import type { UserMenuUser } from "@/components/dashboard/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useUIStore } from "@/stores/ui-store";
 
 const MenuIcon = () => (
   <svg
@@ -99,7 +100,7 @@ export function DashboardShell({
   user: UserMenuUser;
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { sidebarOpen, openSidebar, closeSidebar, toggleSidebar } = useUIStore();
 
   useEffect(() => {
     const isMobile = () =>
@@ -113,10 +114,6 @@ export function DashboardShell({
       document.body.style.overflow = "";
     };
   }, [sidebarOpen]);
-
-  const openSidebar = () => setSidebarOpen(true);
-  const closeSidebar = () => setSidebarOpen(false);
-  const toggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   /** Only close sidebar when navigating on mobile (drawer); leave desktop sidebar state unchanged */
   const handleNavNavigate = () => {

@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
         sku: products.sku,
         category: products.category,
         unit: products.unit,
+        listPrice: products.listPrice,
         reorderLevel: products.reorderLevel,
         archived: products.archived,
         createdAt: products.createdAt,
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, sku, category, unit, reorderLevel, archived } = parsed.data;
+    const { name, sku, category, unit, listPrice, reorderLevel, archived } = parsed.data;
     const [product] = await db
       .insert(products)
       .values({
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
         sku: sku.trim(),
         category: category?.trim() || null,
         unit: unit.trim(),
+        listPrice: listPrice != null ? String(listPrice) : null,
         reorderLevel: reorderLevel ?? 0,
         archived: archived ?? 0,
       })

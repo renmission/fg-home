@@ -5,6 +5,7 @@ export const productSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
   category: z.string().optional(),
   unit: z.string().min(1, "Unit is required"),
+  listPrice: z.coerce.number().min(0).optional().nullable(),
   reorderLevel: z.coerce.number().int().min(0).default(0),
   archived: z
     .union([z.literal(0), z.literal(1)])

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@/components/dashboard/sidebar-icons";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ function getInitials(name?: string | null, email?: string | null): string {
 export function UserMenu({ user }: { user: UserMenuUser }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -84,6 +86,18 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             {user.email && <p className="truncate text-muted-foreground text-xs">{user.email}</p>}
           </div>
           <div className="border-t border-border" />
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-auto w-full justify-start rounded-none px-3 py-2 text-sm font-normal"
+            onClick={() => {
+              setOpen(false);
+              router.push("/dashboard/profile");
+            }}
+            role="menuitem"
+          >
+            Profile
+          </Button>
           <Button
             type="button"
             variant="ghost"

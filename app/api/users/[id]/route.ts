@@ -57,6 +57,18 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   return withRouteErrorHandling(async () => {
     const { user, response } = await getSessionOr401();
     if (response) return response;
+
+    // Only admin and payroll manager can update other users' profiles
+    const isAdmin = user.roles?.includes(ROLES.ADMIN) ?? false;
+    const isPayrollManager = user.roles?.includes(ROLES.PAYROLL_MANAGER) ?? false;
+
+    if (!isAdmin && !isPayrollManager) {
+      return Response.json(
+        { error: "Only administrators and payroll managers can update user profiles" },
+        { status: 403 }
+      );
+    }
+
     const forbidden = requirePermission(user, PERMISSIONS.USERS_WRITE);
     if (forbidden) return forbidden;
 
@@ -111,6 +123,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     if (Object.keys(updates).length > 0) {
       await db.update(users).set(updates).where(eq(users.id, id));
+
+      // Log password changes separately
+      if (updates.passwordHash) {
+        await logUserAudit({
+          actorId: user.id,
+          targetUserId: id,
+          action: "user.password_changed",
+          details: JSON.stringify({ changedBy: user.id === id ? "self" : "admin" }),
+        });
+      }
+
       if (updates.disabled === 1) {
         await logUserAudit({
           actorId: user.id,
@@ -123,7 +146,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           targetUserId: id,
           action: "user.enabled",
         });
-      } else {
+      } else if (!updates.passwordHash) {
+        // Only log user.updated if password wasn't changed (password change is logged separately)
         await logUserAudit({
           actorId: user.id,
           targetUserId: id,

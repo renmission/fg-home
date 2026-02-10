@@ -30,6 +30,8 @@ export const PERMISSIONS = {
   // POS (Point of Sale)
   POS_READ: "pos:read",
   POS_WRITE: "pos:write",
+  // Reports
+  REPORTS_READ: "reports:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -55,6 +57,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.CUSTOMERS_WRITE,
     PERMISSIONS.POS_READ,
     PERMISSIONS.POS_WRITE,
+    PERMISSIONS.REPORTS_READ, // Can view inventory and delivery reports
   ],
   // PAYROLL_MANAGER = HR role - has full CRUD for Users
   [ROLES.PAYROLL_MANAGER]: [
@@ -66,6 +69,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.USERS_WRITE, // HR can create/update/delete users
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
+    PERMISSIONS.REPORTS_READ, // Can view payroll reports
   ],
   [ROLES.DELIVERY_STAFF]: [
     PERMISSIONS.INVENTORY_READ,
@@ -90,6 +94,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.DELIVERIES_READ,
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
+    PERMISSIONS.REPORTS_READ, // Viewers can view reports
   ],
 };
 
@@ -125,4 +130,5 @@ export const NAV_ITEMS: { href: string; label: string; permission: Permission | 
   { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
   { href: "/dashboard/deliveries", label: "Deliveries", permission: PERMISSIONS.DELIVERIES_READ },
   { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
+  { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
 ];

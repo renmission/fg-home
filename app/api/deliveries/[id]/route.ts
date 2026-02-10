@@ -140,15 +140,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     if (parsed.data.customerName !== undefined)
       updateData.customerName = parsed.data.customerName?.trim() || null;
     if (parsed.data.customerAddress !== undefined)
-      updateData.customerAddress = parsed.data.customerAddress.trim();
+      updateData.customerAddress = parsed.data.customerAddress?.trim() || null;
     if (parsed.data.customerPhone !== undefined)
       updateData.customerPhone = parsed.data.customerPhone?.trim() || null;
     if (parsed.data.customerEmail !== undefined)
       updateData.customerEmail = parsed.data.customerEmail?.trim() || null;
     if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
     if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes?.trim() || null;
-    if (parsed.data.assignedToUserId !== undefined)
-      updateData.assignedToUserId = parsed.data.assignedToUserId;
+    if (parsed.data.assignedToUserId !== undefined) {
+      // Handle "unassigned" string or empty string as null
+      updateData.assignedToUserId =
+        parsed.data.assignedToUserId === "" || parsed.data.assignedToUserId === "unassigned"
+          ? null
+          : parsed.data.assignedToUserId;
+    }
     updateData.updatedAt = new Date();
 
     const [updated] = await db

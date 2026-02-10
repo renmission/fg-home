@@ -317,6 +317,7 @@ async function seed() {
     payroll_manager: "Finance",
     inventory_manager: "Operations",
     delivery_staff: "Logistics",
+    pos_cashier: "Sales",
     viewer: "Operations",
   };
 

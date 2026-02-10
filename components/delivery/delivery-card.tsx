@@ -126,8 +126,10 @@ export function DeliveryCard({
           {delivery.orderReference && (
             <span className="truncate max-w-[140px]">Order: {delivery.orderReference}</span>
           )}
-          {delivery.assignedToUserName && (
+          {delivery.assignedToUserName ? (
             <span className="truncate max-w-[140px]">Assigned: {delivery.assignedToUserName}</span>
+          ) : (
+            <span className="truncate max-w-[140px] text-muted-foreground italic">Unassigned</span>
           )}
           <span>{new Date(delivery.createdAt).toLocaleDateString()}</span>
         </div>

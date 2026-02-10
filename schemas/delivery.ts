@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const deliveryStatusSchema = z.enum([
+  "draft",
   "created",
   "picked",
   "in_transit",
@@ -16,12 +17,12 @@ export const deliverySchema = z.object({
   trackingNumber: z.string().min(1, "Tracking number is required"),
   orderReference: z.string().optional(),
   customerName: z.string().optional(),
-  customerAddress: z.string().min(1, "Customer address is required"),
+  customerAddress: z.string().optional(), // Optional for draft deliveries
   customerPhone: z.string().optional(),
   customerEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   status: deliveryStatusSchema.default("created"),
   notes: z.string().optional(),
-  assignedToUserId: z.string().uuid("Assigned staff is required"),
+  assignedToUserId: z.string().uuid("Assigned staff is required").optional(), // Optional for draft deliveries
 });
 
 export type DeliveryFormValues = z.infer<typeof deliverySchema>;
@@ -39,7 +40,7 @@ export const deliveriesListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   search: z.string().optional(),
   status: deliveryStatusSchema.optional(),
-  assignedToUserId: z.string().uuid().optional(),
+  assignedToUserId: z.string().uuid().or(z.literal("unassigned")).optional(), // "unassigned" means null
   sortBy: z
     .enum(["trackingNumber", "customerName", "status", "createdAt", "updatedAt"])
     .optional()

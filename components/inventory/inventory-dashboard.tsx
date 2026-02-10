@@ -335,13 +335,14 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <colgroup>
-                      <col style={{ width: canWrite ? "24%" : "28%" }} />
-                      <col style={{ width: canWrite ? "14%" : "17%" }} />
-                      <col style={{ width: canWrite ? "16%" : "18%" }} />
-                      <col style={{ width: canWrite ? "8%" : "9%" }} />
+                      <col style={{ width: canWrite ? "20%" : "24%" }} />
                       <col style={{ width: canWrite ? "12%" : "14%" }} />
-                      <col style={{ width: canWrite ? "12%" : "14%" }} />
-                      {canWrite && <col style={{ width: "10%" }} />}
+                      <col style={{ width: canWrite ? "14%" : "16%" }} />
+                      <col style={{ width: canWrite ? "7%" : "8%" }} />
+                      <col style={{ width: canWrite ? "10%" : "11%" }} />
+                      <col style={{ width: canWrite ? "10%" : "11%" }} />
+                      <col style={{ width: canWrite ? "10%" : "11%" }} />
+                      {canWrite && <col style={{ width: "8%" }} />}
                     </colgroup>
                     <TableHeader>
                       <TableRow>
@@ -373,6 +374,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                           />
                         </TableHead>
                         <TableHead>Unit</TableHead>
+                        <TableHead className="text-right">Price</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead className="text-right">
                           <SortableHeader
@@ -392,7 +394,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                       {products.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={canWrite ? 7 : 6}
+                            colSpan={canWrite ? 8 : 7}
                             className="text-center text-muted-foreground py-8"
                           >
                             No products found.
@@ -405,6 +407,11 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             <TableCell>{p.sku}</TableCell>
                             <TableCell>{p.category ?? "—"}</TableCell>
                             <TableCell>{p.unit}</TableCell>
+                            <TableCell className="text-right">
+                              {p.listPrice != null && p.listPrice !== ""
+                                ? `₱${Number(p.listPrice).toFixed(2)}`
+                                : "—"}
+                            </TableCell>
                             <TableCell className="text-right">
                               <span
                                 className={
@@ -827,6 +834,9 @@ function ProductFormDialog({
   const [sku, setSku] = useState(product?.sku ?? "");
   const [category, setCategory] = useState(product?.category ?? "");
   const [unit, setUnit] = useState(product?.unit ?? (units.length > 0 ? units[0] : "pcs"));
+  const [listPrice, setListPrice] = useState(
+    product?.listPrice != null && product.listPrice !== "" ? String(product.listPrice) : ""
+  );
   const [reorderLevel, setReorderLevel] = useState(String(product?.reorderLevel ?? 0));
   const categoryOptions: string[] = [
     ...new Set([...categories, product?.category].filter((x): x is string => Boolean(x))),
@@ -842,6 +852,7 @@ function ProductFormDialog({
       sku: sku.trim(),
       category: category.trim() || undefined,
       unit: unit.trim(),
+      listPrice: listPrice.trim() ? parseFloat(listPrice) || undefined : undefined,
       reorderLevel: Math.max(0, parseInt(reorderLevel, 10) || 0),
       archived: product?.archived === 1 ? 1 : 0,
     });
@@ -933,6 +944,18 @@ function ProductFormDialog({
                   className="mt-2"
                 />
               )}
+            </div>
+            <div>
+              <Label htmlFor="listPrice">Price (list)</Label>
+              <Input
+                id="listPrice"
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="0.00"
+                value={listPrice}
+                onChange={(e) => setListPrice(e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="reorderLevel">Reorder level</Label>

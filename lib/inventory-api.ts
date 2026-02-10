@@ -7,6 +7,7 @@ export type ProductListItem = {
   sku: string;
   category: string | null;
   unit: string;
+  listPrice: string | null;
   reorderLevel: number;
   archived: number;
   createdAt: string;

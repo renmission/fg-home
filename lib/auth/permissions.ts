@@ -27,6 +27,9 @@ export const PERMISSIONS = {
   // Settings (admin only)
   SETTINGS_READ: "settings:read",
   SETTINGS_WRITE: "settings:write",
+  // POS (Point of Sale)
+  POS_READ: "pos:read",
+  POS_WRITE: "pos:write",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -48,6 +51,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.DELIVERIES_READ,
     PERMISSIONS.CUSTOMERS_READ,
     PERMISSIONS.CUSTOMERS_WRITE,
+    PERMISSIONS.POS_READ,
+    PERMISSIONS.POS_WRITE,
   ],
   // PAYROLL_MANAGER = HR role - has full CRUD for Users
   [ROLES.PAYROLL_MANAGER]: [
@@ -102,6 +107,7 @@ export function can(user: SessionUser | null | undefined, permission: Permission
  */
 export const NAV_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
   { href: "/dashboard", label: "Dashboard", permission: null },
+  { href: "/dashboard/pos", label: "POS", permission: PERMISSIONS.POS_READ },
   { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
   { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
   { href: "/dashboard/attendance", label: "Attendance", permission: PERMISSIONS.ATTENDANCE_READ },

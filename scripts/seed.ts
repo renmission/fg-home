@@ -21,7 +21,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { ROLES } from "../lib/auth/permissions";
 
-/** Sample inventory items (construction materials & supplies). */
+/** Sample inventory items (construction materials & supplies). listPrice in PHP (₱). */
 const SAMPLE_PRODUCTS = [
   {
     sku: "CEM-50",
@@ -29,6 +29,7 @@ const SAMPLE_PRODUCTS = [
     category: "Cement",
     unit: "bag",
     reorderLevel: 20,
+    listPrice: 285,
   },
   {
     sku: "CEM-40",
@@ -36,24 +37,103 @@ const SAMPLE_PRODUCTS = [
     category: "Cement",
     unit: "bag",
     reorderLevel: 15,
+    listPrice: 235,
   },
-  { sku: "SND-1", name: "Sand (cu.m)", category: "Aggregates", unit: "cu.m", reorderLevel: 5 },
-  { sku: "GRV-1", name: "Gravel (cu.m)", category: "Aggregates", unit: "cu.m", reorderLevel: 5 },
-  { sku: "RBR-10", name: "Rebar 10mm x 6m", category: "Steel", unit: "pcs", reorderLevel: 50 },
-  { sku: "RBR-12", name: "Rebar 12mm x 6m", category: "Steel", unit: "pcs", reorderLevel: 40 },
-  { sku: "PLY-4x8", name: "Plywood 4x8 ft", category: "Lumber", unit: "sheet", reorderLevel: 30 },
-  { sku: "LBR-2x4x8", name: "Lumber 2x4x8", category: "Lumber", unit: "pcs", reorderLevel: 100 },
-  { sku: "LBR-2x6x8", name: "Lumber 2x6x8", category: "Lumber", unit: "pcs", reorderLevel: 80 },
-  { sku: "NIL-2", name: 'Common Nails 2"', category: "Hardware", unit: "kg", reorderLevel: 25 },
-  { sku: "NIL-3", name: 'Common Nails 3"', category: "Hardware", unit: "kg", reorderLevel: 20 },
-  { sku: "PVC-4", name: 'PVC Pipe 4"', category: "Plumbing", unit: "pcs", reorderLevel: 30 },
-  { sku: "PVC-2", name: 'PVC Pipe 2"', category: "Plumbing", unit: "pcs", reorderLevel: 50 },
+  {
+    sku: "SND-1",
+    name: "Sand (cu.m)",
+    category: "Aggregates",
+    unit: "cu.m",
+    reorderLevel: 5,
+    listPrice: 850,
+  },
+  {
+    sku: "GRV-1",
+    name: "Gravel (cu.m)",
+    category: "Aggregates",
+    unit: "cu.m",
+    reorderLevel: 5,
+    listPrice: 920,
+  },
+  {
+    sku: "RBR-10",
+    name: "Rebar 10mm x 6m",
+    category: "Steel",
+    unit: "pcs",
+    reorderLevel: 50,
+    listPrice: 185,
+  },
+  {
+    sku: "RBR-12",
+    name: "Rebar 12mm x 6m",
+    category: "Steel",
+    unit: "pcs",
+    reorderLevel: 40,
+    listPrice: 265,
+  },
+  {
+    sku: "PLY-4x8",
+    name: "Plywood 4x8 ft",
+    category: "Lumber",
+    unit: "sheet",
+    reorderLevel: 30,
+    listPrice: 720,
+  },
+  {
+    sku: "LBR-2x4x8",
+    name: "Lumber 2x4x8",
+    category: "Lumber",
+    unit: "pcs",
+    reorderLevel: 100,
+    listPrice: 95,
+  },
+  {
+    sku: "LBR-2x6x8",
+    name: "Lumber 2x6x8",
+    category: "Lumber",
+    unit: "pcs",
+    reorderLevel: 80,
+    listPrice: 145,
+  },
+  {
+    sku: "NIL-2",
+    name: 'Common Nails 2"',
+    category: "Hardware",
+    unit: "kg",
+    reorderLevel: 25,
+    listPrice: 58,
+  },
+  {
+    sku: "NIL-3",
+    name: 'Common Nails 3"',
+    category: "Hardware",
+    unit: "kg",
+    reorderLevel: 20,
+    listPrice: 62,
+  },
+  {
+    sku: "PVC-4",
+    name: 'PVC Pipe 4"',
+    category: "Plumbing",
+    unit: "pcs",
+    reorderLevel: 30,
+    listPrice: 380,
+  },
+  {
+    sku: "PVC-2",
+    name: 'PVC Pipe 2"',
+    category: "Plumbing",
+    unit: "pcs",
+    reorderLevel: 50,
+    listPrice: 125,
+  },
   {
     sku: "WIR-12",
     name: "Electrical Wire 12 AWG",
     category: "Electrical",
     unit: "m",
     reorderLevel: 200,
+    listPrice: 28,
   },
   {
     sku: "WIR-14",
@@ -61,6 +141,7 @@ const SAMPLE_PRODUCTS = [
     category: "Electrical",
     unit: "m",
     reorderLevel: 200,
+    listPrice: 18,
   },
   {
     sku: "PNT-W1",
@@ -68,6 +149,7 @@ const SAMPLE_PRODUCTS = [
     category: "Paint",
     unit: "gal",
     reorderLevel: 20,
+    listPrice: 420,
   },
   {
     sku: "PNT-W4",
@@ -75,6 +157,7 @@ const SAMPLE_PRODUCTS = [
     category: "Paint",
     unit: "gal",
     reorderLevel: 10,
+    listPrice: 1580,
   },
   {
     sku: "TIL-30x30",
@@ -82,8 +165,16 @@ const SAMPLE_PRODUCTS = [
     category: "Tiles",
     unit: "box",
     reorderLevel: 50,
+    listPrice: 185,
   },
-  { sku: "GRT-25", name: "Grout 25kg", category: "Tiles", unit: "bag", reorderLevel: 10 },
+  {
+    sku: "GRT-25",
+    name: "Grout 25kg",
+    category: "Tiles",
+    unit: "bag",
+    reorderLevel: 10,
+    listPrice: 245,
+  },
 ];
 
 /** Inventory categories (used in Inventory). */
@@ -161,6 +252,7 @@ async function seed() {
         category: p.category,
         unit: p.unit,
         reorderLevel: p.reorderLevel,
+        listPrice: p.listPrice != null ? String(p.listPrice) : null,
       })
       .onConflictDoNothing({ target: products.sku })
       .returning({ id: products.id });
@@ -170,6 +262,15 @@ async function seed() {
         quantity: Math.floor(Math.random() * 80) + 10,
       });
     }
+  }
+
+  // Update listPrice on existing products (so re-running seed applies prices)
+  for (const p of SAMPLE_PRODUCTS) {
+    if (p.listPrice == null) continue;
+    await db
+      .update(products)
+      .set({ listPrice: String(p.listPrice), updatedAt: new Date() })
+      .where(eq(products.sku, p.sku));
   }
 
   const productRows = await db.select({ id: products.id }).from(products);

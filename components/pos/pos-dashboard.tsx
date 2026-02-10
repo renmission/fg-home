@@ -111,6 +111,7 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   const [lastCompletedSaleId, setLastCompletedSaleId] = useState<string | null>(null);
   const [showPaymentSection, setShowPaymentSection] = useState(false);
   const [showHeldCarts, setShowHeldCarts] = useState(false);
+  const [forDelivery, setForDelivery] = useState(false);
 
   const debouncedSearch = useDebouncedValue(productSearch, 300);
 
@@ -237,14 +238,43 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   });
 
   const completeMutation = useMutation({
-    mutationFn: completeSale,
-    onSuccess: (_, saleId) => {
+    mutationFn: ({
+      saleId,
+      forDelivery,
+      customerName,
+      customerAddress,
+      customerPhone,
+      customerEmail,
+      deliveryNotes,
+    }: {
+      saleId: string;
+      forDelivery?: boolean;
+      customerName?: string;
+      customerAddress?: string;
+      customerPhone?: string;
+      customerEmail?: string;
+      deliveryNotes?: string;
+    }) =>
+      completeSale(saleId, {
+        forDelivery,
+        customerName,
+        customerAddress,
+        customerPhone,
+        customerEmail,
+        deliveryNotes,
+      }),
+    onSuccess: (data, { saleId }) => {
       queryClient.invalidateQueries({ queryKey: SALE_QUERY_KEY(saleId) });
       queryClient.invalidateQueries({ queryKey: SALES_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+      if (data.deliveryId) {
+        queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      }
       setCurrentSaleId(null);
       setLastCompletedSaleId(saleId);
-      setCompletedMessage("Sale completed. Stock has been updated.");
+      setCompletedMessage("Sale completed successfully.");
+      // Reset delivery checkbox
+      setForDelivery(false);
     },
   });
 
@@ -324,7 +354,10 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
 
   const handleComplete = () => {
     if (!currentSaleId || !canWrite || !canComplete) return;
-    completeMutation.mutate(currentSaleId);
+    completeMutation.mutate({
+      saleId: currentSaleId,
+      forDelivery: forDelivery ? true : undefined,
+    });
   };
 
   const handleNewSale = () => {
@@ -853,26 +886,50 @@ ${paymentsSectionHtml}
                 )}
 
                 {canWrite && isDraft && (
-                  <div className="flex gap-2 mt-3">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      disabled={holdMutation.isPending || lines.length === 0}
-                      onClick={() => holdMutation.mutate(currentSaleId!)}
-                    >
-                      {holdMutation.isPending ? "Holding…" : "Hold"}
-                    </Button>
-                    <Button
-                      className="flex-1 h-12 text-base font-semibold"
-                      disabled={!canComplete || completeMutation.isPending}
-                      onClick={handleComplete}
-                    >
-                      {completeMutation.isPending
-                        ? "Completing…"
-                        : paymentTotal < total && total > 0
-                          ? `Complete · Add ₱${(total - paymentTotal).toFixed(2)}`
-                          : "Complete sale"}
-                    </Button>
+                  <div className="mt-3 space-y-3">
+                    {/* For Delivery checkbox */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={forDelivery}
+                        onChange={(e) => setForDelivery(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <span className="text-sm font-medium">For Delivery</span>
+                    </label>
+
+                    {/* Info message when For Delivery is checked */}
+                    {forDelivery && (
+                      <div className="rounded-lg border border-border p-3 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">
+                          A draft delivery will be created. Customer information can be added later
+                          in the Deliveries module.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        disabled={holdMutation.isPending || lines.length === 0}
+                        onClick={() => holdMutation.mutate(currentSaleId!)}
+                      >
+                        {holdMutation.isPending ? "Holding…" : "Hold"}
+                      </Button>
+                      <Button
+                        className="flex-1 h-12 text-base font-semibold"
+                        disabled={!canComplete || completeMutation.isPending}
+                        onClick={handleComplete}
+                      >
+                        {completeMutation.isPending
+                          ? "Completing…"
+                          : paymentTotal < total && total > 0
+                            ? `Complete · Add ₱${(total - paymentTotal).toFixed(2)}`
+                            : "Complete sale"}
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {completeMutation.isError && (

@@ -40,6 +40,7 @@ export const ROLES = {
   INVENTORY_MANAGER: "inventory_manager",
   PAYROLL_MANAGER: "payroll_manager",
   DELIVERY_STAFF: "delivery_staff",
+  POS_CASHIER: "pos_cashier",
   VIEWER: "viewer",
 } as const;
 
@@ -49,6 +50,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.INVENTORY_WRITE,
     PERMISSIONS.DELIVERIES_READ,
+    PERMISSIONS.DELIVERIES_WRITE, // Can create deliveries when preparing shipments
     PERMISSIONS.CUSTOMERS_READ,
     PERMISSIONS.CUSTOMERS_WRITE,
     PERMISSIONS.POS_READ,
@@ -69,8 +71,17 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.DELIVERIES_READ,
     PERMISSIONS.DELIVERIES_UPDATE_STATUS,
-    PERMISSIONS.CUSTOMERS_READ,
-    PERMISSIONS.CUSTOMERS_WRITE,
+    PERMISSIONS.CUSTOMERS_READ, // Read-only access to customers
+    PERMISSIONS.ATTENDANCE_READ,
+    PERMISSIONS.ATTENDANCE_WRITE,
+  ],
+  [ROLES.POS_CASHIER]: [
+    PERMISSIONS.POS_READ,
+    PERMISSIONS.POS_WRITE,
+    PERMISSIONS.INVENTORY_READ, // Read-only access to products, prices, stock levels
+    PERMISSIONS.DELIVERIES_READ, // Can view deliveries if POS sales create them
+    PERMISSIONS.CUSTOMERS_READ, // Can view customer info when processing sales
+    PERMISSIONS.CUSTOMERS_WRITE, // Can create/update customers during sales
     PERMISSIONS.ATTENDANCE_READ,
     PERMISSIONS.ATTENDANCE_WRITE,
   ],

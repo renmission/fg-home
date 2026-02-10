@@ -391,6 +391,7 @@ export const customers = pgTable("customer", {
 // --- Delivery Tracking (Phase 5) ---
 
 export const deliveryStatuses = [
+  "draft",
   "created",
   "picked",
   "in_transit",
@@ -411,14 +412,14 @@ export const deliveries = pgTable(
     trackingNumber: text("tracking_number").notNull().unique(),
     orderReference: text("order_reference"), // optional: link to order ID
     customerName: text("customer_name"),
-    customerAddress: text("customer_address").notNull(),
+    customerAddress: text("customer_address"), // Optional for draft deliveries
     customerPhone: text("customer_phone"),
     customerEmail: text("customer_email"),
     status: text("status").$type<DeliveryStatus>().notNull().default("created"),
     notes: text("notes"), // optional notes
-    assignedToUserId: text("assigned_to_user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }), // Required: delivery must be assigned to a user
+    assignedToUserId: text("assigned_to_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }), // Optional: can be null for draft deliveries from POS
     createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),

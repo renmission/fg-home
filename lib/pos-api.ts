@@ -144,11 +144,21 @@ export async function addPayment(
   return parseApiResponse(res, "Failed to add payment");
 }
 
-export async function completeSale(saleId: string): Promise<{ data: SaleListItem }> {
+export async function completeSale(
+  saleId: string,
+  options?: {
+    forDelivery?: boolean;
+    customerName?: string;
+    customerAddress?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    deliveryNotes?: string;
+  }
+): Promise<{ data: SaleListItem; deliveryId?: string }> {
   const res = await fetch(`/api/pos/sales/${saleId}/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify(options || {}),
   });
   return parseApiResponse(res, "Failed to complete sale");
 }

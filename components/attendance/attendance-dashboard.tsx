@@ -127,6 +127,7 @@ function TablePagination({
 
 export function AttendanceDashboard({ user }: { user: SessionUser | null }) {
   const canWrite = user ? can(user, PERMISSIONS.ATTENDANCE_WRITE) : false;
+  const canReadPayroll = user ? can(user, PERMISSIONS.PAYROLL_READ) : false;
   const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? false;
   const isPayrollManager = user?.roles?.includes(ROLES.PAYROLL_MANAGER) ?? false;
   const [tab, setTab] = useState<Tab>("submit");
@@ -178,10 +179,11 @@ export function AttendanceDashboard({ user }: { user: SessionUser | null }) {
   const hasEmployeeRecord = !!employeeId;
 
   // Fetch employees list only for checking submitted attendance (for records tab)
+  // Only fetch if user has PAYROLL_READ permission (employees API requires this)
   const { data: employeesData } = useQuery({
     queryKey: [...EMPLOYEES_KEY, { active: true }],
     queryFn: () => fetchEmployees({ active: true, limit: 1000 }),
-    enabled: tab === "records" || (tab === "submit" && !!employeeId), // Only fetch when needed
+    enabled: canReadPayroll && (tab === "records" || (tab === "submit" && !!employeeId)), // Only fetch when needed and user has permission
   });
 
   const employees = employeesData?.data ?? [];

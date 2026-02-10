@@ -406,6 +406,7 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
                     aria-label="Filter by assigned staff"
                   >
                     <option value="all">All staff</option>
+                    <option value="unassigned">Unassigned</option>
                     {deliveryStaff.map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}
@@ -513,7 +514,9 @@ export function DeliveryDashboard({ user }: { user: SessionUser | null }) {
                             </TableCell>
                             <TableCell>{delivery.orderReference ?? "—"}</TableCell>
                             <TableCell className="text-muted-foreground">
-                              {delivery.assignedToUserName ?? "—"}
+                              {delivery.assignedToUserName ?? (
+                                <span className="text-muted-foreground italic">Unassigned</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <span
@@ -942,20 +945,26 @@ function DeliveryFormDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assignedToUserId) {
+    // assignedToUserId is optional for draft status, required for other statuses
+    if (!assignedToUserId && status !== "draft") {
       alert("Please select an assigned staff member");
+      return;
+    }
+    // customerAddress is optional for draft status
+    if (!customerAddress.trim() && status !== "draft") {
+      alert("Please provide customer address");
       return;
     }
     onSubmit({
       trackingNumber: trackingNumber.trim(),
       orderReference: orderReference.trim() || undefined,
       customerName: customerName.trim() || undefined,
-      customerAddress: customerAddress.trim(),
+      customerAddress: customerAddress.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       customerEmail: customerEmail.trim() || undefined,
       status: status as DeliveryStatus,
       notes: notes.trim() || undefined,
-      assignedToUserId,
+      assignedToUserId: assignedToUserId || undefined,
     });
   };
 
@@ -1056,13 +1065,23 @@ function DeliveryFormDialog({
               />
             </div>
             <div>
-              <Label htmlFor="customerAddress">Customer Address *</Label>
+              <Label htmlFor="customerAddress">
+                Customer Address {status !== "draft" && <span className="text-destructive">*</span>}
+              </Label>
               <Input
                 id="customerAddress"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
-                required
+                required={status !== "draft"}
+                placeholder={
+                  status === "draft" ? "Optional for draft deliveries" : "Customer address"
+                }
               />
+              {status === "draft" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Address can be provided later when assigning delivery
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="customerPhone">Customer Phone</Label>
@@ -1082,21 +1101,31 @@ function DeliveryFormDialog({
               />
             </div>
             <div>
-              <Label htmlFor="assignedToUserId">Assigned To *</Label>
+              <Label htmlFor="assignedToUserId">
+                Assigned To {status !== "draft" && <span className="text-destructive">*</span>}
+              </Label>
               <select
                 id="assignedToUserId"
                 className="input-select mt-2 w-full"
                 value={assignedToUserId}
                 onChange={(e) => setAssignedToUserId(e.target.value)}
-                required
+                required={status !== "draft"}
               >
-                <option value="">Select staff member</option>
+                <option value="">
+                  {status === "draft" ? "Unassigned (will assign later)" : "Select staff member"}
+                </option>
                 {deliveryStaff.map((staff) => (
                   <option key={staff.id} value={staff.id}>
                     {staff.name}
                   </option>
                 ))}
               </select>
+              {status === "draft" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Draft deliveries can be created without assignment. Assign later in the deliveries
+                  list.
+                </p>
+              )}
             </div>
             {delivery && (
               <div>
@@ -1465,7 +1494,11 @@ function DeliveryDetailDialog({
                 )}
                 <div className="flex justify-between">
                   <span className="text-sm">Assigned To:</span>
-                  <span className="text-sm font-medium">{delivery.assignedToUserName ?? "—"}</span>
+                  <span className="text-sm font-medium">
+                    {delivery.assignedToUserName ?? (
+                      <span className="text-muted-foreground italic">Unassigned</span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>

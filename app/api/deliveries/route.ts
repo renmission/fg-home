@@ -64,8 +64,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Filter by assigned user (for admin/inventory manager filtering)
+  // Special case: "unassigned" string means null assignedToUserId
   if (q.assignedToUserId && !isDeliveryStaff) {
-    conditions.push(eq(deliveries.assignedToUserId, q.assignedToUserId));
+    if (q.assignedToUserId === "unassigned") {
+      conditions.push(sql`${deliveries.assignedToUserId} IS NULL`);
+    } else {
+      conditions.push(eq(deliveries.assignedToUserId, q.assignedToUserId));
+    }
   }
 
   if (q.search?.trim()) {
@@ -111,7 +116,9 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Get assigned user names
-  const assignedUserIds = [...new Set(rows.map((r) => r.assignedToUserId).filter(Boolean))];
+  const assignedUserIds = [
+    ...new Set(rows.map((r) => r.assignedToUserId).filter((id): id is string => Boolean(id))),
+  ];
   const assignedUsers =
     assignedUserIds.length > 0
       ? await db
@@ -125,8 +132,12 @@ export async function GET(req: NextRequest) {
   return Response.json({
     data: rows.map((r) => ({
       ...r,
-      assignedToUserName: assignedUserMap.get(r.assignedToUserId)?.name ?? null,
-      assignedToUserEmail: assignedUserMap.get(r.assignedToUserId)?.email ?? null,
+      assignedToUserName: r.assignedToUserId
+        ? (assignedUserMap.get(r.assignedToUserId)?.name ?? null)
+        : null,
+      assignedToUserEmail: r.assignedToUserId
+        ? (assignedUserMap.get(r.assignedToUserId)?.email ?? null)
+        : null,
     })),
     total,
     page,
@@ -207,12 +218,12 @@ export async function POST(req: NextRequest) {
         trackingNumber: finalTrackingNumber,
         orderReference: orderReference || null,
         customerName: customerName?.trim() || null,
-        customerAddress: customerAddress.trim(),
+        customerAddress: customerAddress?.trim() || null,
         customerPhone: customerPhone?.trim() || null,
         customerEmail: customerEmail?.trim() || null,
         status: status ?? "created",
         notes: notes?.trim() || null,
-        assignedToUserId,
+        assignedToUserId: assignedToUserId || null,
         createdById: user.id,
       })
       .returning();

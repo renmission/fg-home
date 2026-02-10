@@ -1,11 +1,20 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { sales, saleLineItems, products, stockLevels } from "@/lib/db/schema";
+import {
+  sales,
+  saleLineItems,
+  products,
+  stockLevels,
+  deliveries,
+  deliveryStatusUpdates,
+} from "@/lib/db/schema";
 import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { getPaymentTotal } from "@/lib/pos";
 import { applyStockMovement } from "@/lib/inventory";
+import { generateTrackingNumber, generateOrderReference } from "@/lib/delivery-utils";
+import { notifyDeliveryManagersAboutDraftDelivery } from "@/lib/notifications";
 import { eq, inArray } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -13,6 +22,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 /**
  * Complete a sale: validate payment >= total, create stock-out movements
  * (inventory integration), then mark sale as completed.
+ * Optionally create a delivery record if forDelivery is true.
  */
 export async function POST(req: NextRequest, context: RouteContext) {
   return withRouteErrorHandling(async () => {
@@ -22,6 +32,15 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (forbidden) return forbidden;
 
     const { id: saleId } = await context.params;
+    const body = await req.json().catch(() => ({}));
+    const {
+      forDelivery,
+      customerName,
+      customerAddress,
+      customerPhone,
+      customerEmail,
+      deliveryNotes,
+    } = body;
 
     const [sale] = await db
       .select({
@@ -122,8 +141,77 @@ export async function POST(req: NextRequest, context: RouteContext) {
       })
       .where(eq(sales.id, saleId));
 
+    // Create delivery if forDelivery is true (customerAddress is optional for draft)
+    let deliveryId: string | null = null;
+    if (forDelivery) {
+      const trackingNumber = generateTrackingNumber();
+      const orderReference = `SALE-${saleId.substring(0, 8).toUpperCase()}`;
+
+      // Ensure tracking number uniqueness
+      let finalTrackingNumber = trackingNumber;
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      while (attempts < maxAttempts) {
+        try {
+          const [existing] = await db
+            .select({ id: deliveries.id })
+            .from(deliveries)
+            .where(eq(deliveries.trackingNumber, finalTrackingNumber))
+            .limit(1);
+
+          if (!existing) {
+            break;
+          }
+
+          finalTrackingNumber = generateTrackingNumber();
+          attempts++;
+        } catch (error) {
+          break;
+        }
+      }
+
+      const [delivery] = await db
+        .insert(deliveries)
+        .values({
+          trackingNumber: finalTrackingNumber,
+          orderReference,
+          customerName: customerName?.trim() || null,
+          customerAddress: customerAddress?.trim() || null, // Optional for draft deliveries
+          customerPhone: customerPhone?.trim() || null,
+          customerEmail: customerEmail?.trim() || null,
+          status: "draft",
+          notes: deliveryNotes?.trim() || `Delivery for sale ${saleId}`,
+          assignedToUserId: null, // Will be assigned by delivery manager
+          createdById: user.id,
+        })
+        .returning();
+
+      if (delivery) {
+        deliveryId = delivery.id;
+        // Create initial status update for "draft" status
+        await db.insert(deliveryStatusUpdates).values({
+          deliveryId: delivery.id,
+          status: "draft",
+          updatedById: user.id,
+          note: "Created from POS sale",
+        });
+
+        // Notify delivery managers about the new draft delivery
+        try {
+          await notifyDeliveryManagersAboutDraftDelivery(delivery.id, finalTrackingNumber, saleId);
+        } catch (error) {
+          // Log error but don't fail the request
+          console.error("Failed to send delivery notification:", error);
+        }
+      }
+    }
+
     const [completed] = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
 
-    return Response.json({ data: completed });
+    return Response.json({
+      data: completed,
+      deliveryId: deliveryId || undefined,
+    });
   });
 }

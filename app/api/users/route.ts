@@ -146,6 +146,18 @@ export async function POST(req: NextRequest) {
   return withRouteErrorHandling(async () => {
     const { user, response } = await getSessionOr401();
     if (response) return response;
+
+    // Only admin and payroll manager can create users
+    const isAdmin = user.roles?.includes(ROLES.ADMIN) ?? false;
+    const isPayrollManager = user.roles?.includes(ROLES.PAYROLL_MANAGER) ?? false;
+
+    if (!isAdmin && !isPayrollManager) {
+      return Response.json(
+        { error: "Only administrators and payroll managers can create users" },
+        { status: 403 }
+      );
+    }
+
     const forbidden = requirePermission(user, PERMISSIONS.USERS_WRITE);
     if (forbidden) return forbidden;
 

@@ -96,3 +96,41 @@ export async function fetchUserAudit(params?: {
   const res = await fetch(`/api/users/audit${qs ? `?${qs}` : ""}`);
   return parseApiResponse<{ data: UserAuditEntry[] }>(res, "Failed to load audit log");
 }
+
+/**
+ * Get current user's profile
+ */
+export async function fetchCurrentUser(): Promise<{ data: UserDetail }> {
+  const res = await fetch("/api/users/me");
+  return parseApiResponse<{ data: UserDetail }>(res, "Failed to load profile");
+}
+
+/**
+ * Update current user's profile (name, email)
+ */
+export async function updateCurrentUser(body: {
+  name?: string;
+  email?: string;
+}): Promise<{ data: UserDetail }> {
+  const res = await fetch("/api/users/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseApiResponse<{ data: UserDetail }>(res, "Failed to update profile");
+}
+
+/**
+ * Change current user's password
+ */
+export async function changePassword(body: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ message: string }> {
+  const res = await fetch("/api/users/me/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseApiResponse<{ message: string }>(res, "Failed to change password");
+}

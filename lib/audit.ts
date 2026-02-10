@@ -6,7 +6,9 @@ export type UserAuditAction =
   | "user.updated"
   | "user.roles_changed"
   | "user.disabled"
-  | "user.enabled";
+  | "user.enabled"
+  | "user.profile_updated"
+  | "user.password_changed";
 
 /**
  * Append an audit log entry for user/role changes.

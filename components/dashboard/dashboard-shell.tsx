@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
@@ -139,16 +140,20 @@ export function DashboardShell({
           </Button>
           <Link
             href="/dashboard"
-            className="flex shrink-0 items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80"
+            className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
             onClick={closeSidebar}
           >
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
-              aria-hidden
-            >
-              FG
+            <Image
+              src="/logo-1.png"
+              alt="FG Home Builders and Construction Supply"
+              width={150}
+              height={40}
+              priority
+              className="h-8 w-auto"
+            />
+            <span className="font-semibold text-foreground hidden md:inline-block">
+              FG Home Builders
             </span>
-            FG Homes
           </Link>
         </div>
         <div className="flex items-center gap-1">

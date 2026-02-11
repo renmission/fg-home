@@ -3,13 +3,19 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export default async function HomePage() {
   const session = await auth();
   if (session?.user) redirect("/dashboard");
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-white p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-8 relative">
+      {/* Theme Toggle - Top Right */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       {/* Hero Content */}
       <section className="hero-section w-full max-w-4xl mx-auto text-center space-y-8">
         {/* Logo */}

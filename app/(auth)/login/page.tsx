@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,54 +45,66 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-muted/30 via-background to-muted/20 p-4 sm:p-6">
-      <Card className="w-full max-w-sm shadow-lg">
-        <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="text-xl sm:text-2xl">FG Homes</CardTitle>
-          <CardDescription className="text-sm">
-            Sign in to the internal management platform
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-                className="min-h-11 touch-manipulation sm:min-h-0"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="min-h-11 touch-manipulation sm:min-h-0"
-                disabled={isLoading}
-              />
-            </div>
-            {error && (
-              <div className="rounded-md bg-destructive/15 border border-destructive/50 p-3 text-sm text-destructive">
-                {error}
+      <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+        <div className="flex justify-center">
+          <Image
+            src="/logo.png"
+            alt="FG Home Builders and Construction Supply Logo"
+            width={300}
+            height={150}
+            priority
+            className="h-auto w-auto max-w-full"
+          />
+        </div>
+        <Card className="w-full shadow-lg">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-xl sm:text-2xl">FG Homes</CardTitle>
+            <CardDescription className="text-sm">
+              Sign in to the internal management platform
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                  className="min-h-11 touch-manipulation sm:min-h-0"
+                />
               </div>
-            )}
-            <Button
-              type="submit"
-              className="w-full min-h-11 touch-manipulation sm:min-h-0"
-              disabled={isLoading}
-            >
-              {isLoading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  className="min-h-11 touch-manipulation sm:min-h-0"
+                  disabled={isLoading}
+                />
+              </div>
+              {error && (
+                <div className="rounded-md bg-destructive/15 border border-destructive/50 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+              <Button
+                type="submit"
+                className="w-full min-h-11 touch-manipulation sm:min-h-0"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

@@ -1,23 +1,39 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 export default async function HomePage() {
   const session = await auth();
   if (session?.user) redirect("/dashboard");
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-2xl font-semibold">
-        FG Home Builders and Construction Supply
-      </h1>
-      <p className="text-muted-foreground">Internal management platform</p>
-      <Link
-        href="/login"
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        Sign in
-      </Link>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-white p-8">
+      {/* Hero Content */}
+      <section className="hero-section w-full max-w-4xl mx-auto text-center space-y-8">
+        {/* Logo */}
+        <div className="flex justify-center mb-4">
+          <Image
+            src="/logo.png"
+            alt="FG Home Builders and Construction Supply Logo"
+            width={400}
+            height={200}
+            priority
+            className="h-auto w-auto max-w-full"
+          />
+        </div>
+
+        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+          Streamline your operations with our comprehensive internal management platform designed
+          for construction supply businesses.
+        </p>
+        <div className="pt-4">
+          <Button asChild size="lg" className="text-base px-8 py-6">
+            <Link href="/login">Get Started</Link>
+          </Button>
+        </div>
+      </section>
     </main>
   );
 }

@@ -60,8 +60,9 @@ export function IconPayroll({ className }: { className?: string }) {
       className={className}
       aria-hidden
     >
-      <line x1="12" x2="12" y1="1" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      <path d="M20 11H4" />
+      <path d="M20 7H4" />
+      <path d="M7 21V4a1 1 0 0 1 1-1h4a1 1 0 0 1 0 12H7" />
     </svg>
   );
 }

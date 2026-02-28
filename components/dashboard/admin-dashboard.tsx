@@ -15,7 +15,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Package, Truck, DollarSign, Users } from "lucide-react";
+import { Package, Truck, Banknote, Users } from "lucide-react";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
@@ -78,7 +78,7 @@ export function AdminDashboard() {
           title="Recent Sales"
           value={`₱${Number(data.sales?.totalAmount || 0).toLocaleString()}`}
           description={`${data.sales?.transactionCount || 0} transactions`}
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<Banknote className="h-4 w-4" />}
         />
         <DashboardCard
           title="Active Users"

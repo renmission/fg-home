@@ -19,7 +19,7 @@ export function formatMoney(amount: unknown): string {
   if (amount === null || amount === undefined) return "₱0.00";
   const num =
     typeof amount === "string" ? parseFloat(amount) : typeof amount === "number" ? amount : 0;
-  return `₱${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatDate(date: unknown): string {

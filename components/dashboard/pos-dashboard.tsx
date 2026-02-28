@@ -12,7 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { DollarSign, ShoppingCart, TrendingUp } from "lucide-react";
+import { Banknote, ShoppingCart, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -61,7 +61,7 @@ export function PosDashboard() {
           title="Today's Sales"
           value={`₱${Number(data.today?.totalAmount || 0).toLocaleString()}`}
           description={`${data.today?.transactionCount || 0} transactions`}
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<Banknote className="h-4 w-4" />}
         />
         <DashboardCard
           title="Last 30 Days"

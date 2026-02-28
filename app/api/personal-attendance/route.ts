@@ -32,7 +32,9 @@ export async function GET(request: Request) {
     }
 
     // 2. See if there is a current pay period (optional now)
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+      new Date()
+    );
     const currentPeriod = await db.query.payPeriods.findFirst({
       where: sql`${payPeriods.startDate} <= ${todayStr} AND ${payPeriods.endDate} >= ${todayStr}`,
       orderBy: desc(payPeriods.createdAt),
@@ -89,7 +91,9 @@ export async function POST(request: Request) {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+      new Date()
+    );
 
     // Find current pay period (optional)
     const currentPeriod = await db.query.payPeriods.findFirst({

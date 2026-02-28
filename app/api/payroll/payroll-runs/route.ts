@@ -130,91 +130,46 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Pay period not found" }, { status: 404 });
     }
 
-    // Get admin role ID to exclude admin users
-    const [adminRole] = await db
-      .select({ id: roles.id })
-      .from(roles)
-      .where(eq(roles.name, ROLES.ADMIN))
-      .limit(1);
+    // 1. Find and adopt orphaned attendance records (no payPeriodId) that fall within this range
+    // This handles cases where employees clock in before a pay period is defined
+    const orphans = await db
+      .select({ id: attendance.id })
+      .from(attendance)
+      .innerJoin(attendanceDays, eq(attendance.id, attendanceDays.attendanceId))
+      .where(
+        and(
+          sql`${attendance.payPeriodId} IS NULL`,
+          sql`${attendanceDays.date} >= ${period.startDate}`,
+          sql`${attendanceDays.date} <= ${period.endDate}`
+        )
+      )
+      .groupBy(attendance.id);
 
-    // Get all admin user IDs
-    const adminUserIds = adminRole
-      ? await db
-          .select({ userId: userRoles.userId })
-          .from(userRoles)
-          .where(eq(userRoles.roleId, adminRole.id))
-      : [];
-    const adminUserIdSet = new Set(adminUserIds.map((r) => r.userId).filter(Boolean));
+    if (orphans.length > 0) {
+      await db
+        .update(attendance)
+        .set({ payPeriodId: period.id })
+        .where(
+          inArray(
+            attendance.id,
+            orphans.map((o) => o.id)
+          )
+        );
+    }
 
-    // Get all active (non-disabled) users excluding admins
-    const allActiveUsers = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        departmentId: users.departmentId,
-        salaryRate: users.salaryRate,
-      })
-      .from(users)
-      .where(eq(users.disabled, 0));
+    // 2. Get all employees who have a submitted attendance record for this pay period
+    const attendanceRecords = await db
+      .select({ employeeId: attendance.employeeId })
+      .from(attendance)
+      .where(eq(attendance.payPeriodId, period.id));
 
-    // Filter out admin users
-    const activeUsers = allActiveUsers.filter((u) => !adminUserIdSet.has(u.id));
+    const employeeIdsToPay = attendanceRecords.map((a) => a.employeeId);
 
-    // Get or create employee records for each active user
-    const employeeIds: string[] = [];
-    for (const u of activeUsers) {
-      if (!u.email) continue;
-
-      // Check if employee record exists
-      let [existingEmployee] = await db
-        .select({ id: employees.id })
-        .from(employees)
-        .where(eq(employees.email, u.email))
-        .limit(1);
-
-      // If no employee record exists, create one
-      if (!existingEmployee) {
-        // Get department name if available
-        let departmentName = "General";
-        if (u.departmentId) {
-          const [dept] = await db
-            .select({ name: departments.name })
-            .from(departments)
-            .where(eq(departments.id, u.departmentId))
-            .limit(1);
-          if (dept?.name) {
-            departmentName = dept.name;
-          }
-        }
-
-        const [newEmployee] = await db
-          .insert(employees)
-          .values({
-            name: u.name ?? u.email.split("@")[0],
-            email: u.email,
-            department: departmentName,
-            rate: u.salaryRate ?? "1000.00",
-            active: 1,
-          })
-          .returning({ id: employees.id });
-
-        if (newEmployee) {
-          existingEmployee = newEmployee;
-        }
-      }
-
-      // Only include active employees
-      if (existingEmployee) {
-        const [emp] = await db
-          .select({ id: employees.id })
-          .from(employees)
-          .where(and(eq(employees.id, existingEmployee.id), eq(employees.active, 1)))
-          .limit(1);
-        if (emp) {
-          employeeIds.push(emp.id);
-        }
-      }
+    if (employeeIdsToPay.length === 0) {
+      return Response.json(
+        { error: "No attendance records found for this pay period" },
+        { status: 400 }
+      );
     }
 
     const [run] = await db
@@ -230,132 +185,127 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Failed to create payroll run" }, { status: 500 });
     }
 
-    // Create payslips for all active employees (from users)
-    if (employeeIds.length > 0) {
-      const payslipInserts = await db
-        .insert(payslips)
-        .values(
-          employeeIds.map((empId) => ({
-            payrollRunId: run.id,
-            employeeId: empId,
-            grossPay: "0",
-            totalDeductions: "0",
-            netPay: "0",
-            status: "draft" as const,
-          }))
+    // Create payslips for employees with attendance
+    const payslipInserts = await db
+      .insert(payslips)
+      .values(
+        employeeIdsToPay.map((empId) => ({
+          payrollRunId: run.id,
+          employeeId: empId,
+          grossPay: "0",
+          totalDeductions: "0",
+          netPay: "0",
+          status: "draft" as const,
+        }))
+      )
+      .returning({ id: payslips.id, employeeId: payslips.employeeId });
+
+    // Calculate and create earnings from attendance for each payslip
+    for (const payslip of payslipInserts) {
+      // Get employee rate
+      const [employee] = await db
+        .select({ rate: employees.rate })
+        .from(employees)
+        .where(eq(employees.id, payslip.employeeId))
+        .limit(1);
+
+      if (!employee) continue;
+
+      const employeeRate = parseFloat(employee.rate || "0");
+      if (employeeRate === 0) continue;
+
+      // Find attendance record for this employee and pay period
+      const [attendanceRecord] = await db
+        .select({ id: attendance.id })
+        .from(attendance)
+        .where(
+          and(eq(attendance.employeeId, payslip.employeeId), eq(attendance.payPeriodId, period.id))
         )
-        .returning({ id: payslips.id, employeeId: payslips.employeeId });
+        .limit(1);
 
-      // Calculate and create earnings from attendance for each payslip
-      for (const payslip of payslipInserts) {
-        // Get employee rate
-        const [employee] = await db
-          .select({ rate: employees.rate })
-          .from(employees)
-          .where(eq(employees.id, payslip.employeeId))
-          .limit(1);
+      if (attendanceRecord) {
+        // Get all attendance days and calculate total hours
+        const attendanceDayRows = await db
+          .select({ hoursWorked: attendanceDays.hoursWorked, present: attendanceDays.present })
+          .from(attendanceDays)
+          .where(eq(attendanceDays.attendanceId, attendanceRecord.id));
 
-        if (!employee) continue;
-
-        const employeeRate = parseFloat(employee.rate || "0");
-        if (employeeRate === 0) continue;
-
-        // Find attendance record for this employee and pay period
-        const [attendanceRecord] = await db
-          .select({ id: attendance.id })
-          .from(attendance)
-          .where(
-            and(
-              eq(attendance.employeeId, payslip.employeeId),
-              eq(attendance.payPeriodId, period.id)
-            )
-          )
-          .limit(1);
-
-        if (attendanceRecord) {
-          // Get all attendance days and calculate total hours
-          const attendanceDayRows = await db
-            .select({ hoursWorked: attendanceDays.hoursWorked, present: attendanceDays.present })
-            .from(attendanceDays)
-            .where(eq(attendanceDays.attendanceId, attendanceRecord.id));
-
-          // Calculate total hours worked
-          let totalHours = 0;
-          for (const day of attendanceDayRows) {
-            if (day.present === 1) {
-              // If hoursWorked is provided, use it; otherwise default to 8 hours
-              const hours = day.hoursWorked ? parseFloat(day.hoursWorked) : 8.0;
-              totalHours += hours;
-            }
+        // Calculate total hours worked
+        let totalHours = 0;
+        for (const day of attendanceDayRows) {
+          if (day.present === 1) {
+            // If hoursWorked is provided, use it; otherwise default to 8 hours
+            const hours = day.hoursWorked ? parseFloat(day.hoursWorked) : 8.0;
+            totalHours += hours;
           }
+        }
 
-          // Calculate gross pay = rate × total hours
-          if (totalHours > 0) {
-            const calculatedGrossPay = employeeRate * totalHours;
+        // Calculate gross pay = rate × total hours
+        if (totalHours > 0) {
+          const calculatedGrossPay = employeeRate * totalHours;
 
-            // Create earnings entry
-            await db.insert(earnings).values({
+          // Create earnings entry
+          await db.insert(earnings).values({
+            payslipId: payslip.id,
+            type: "regular",
+            amount: calculatedGrossPay.toFixed(2),
+            description: `${totalHours.toFixed(2)} hours × ₱${employeeRate.toFixed(2)}/hour`,
+          });
+
+          // Calculate Philippine mandatory deductions
+          const deductionsData = calculatePhilippineDeductions(calculatedGrossPay, period.type);
+
+          // Create deduction entries
+          const deductionEntries = [];
+          if (deductionsData.sss > 0) {
+            deductionEntries.push({
               payslipId: payslip.id,
-              type: "regular",
-              amount: calculatedGrossPay.toFixed(2),
-              description: `${totalHours.toFixed(2)} hours × ₱${employeeRate.toFixed(2)}/hour`,
+              type: "sss" as const,
+              amount: deductionsData.sss.toFixed(2),
+              description: "SSS Contribution (4.5%)",
             });
-
-            // Calculate Philippine mandatory deductions
-            const deductionsData = calculatePhilippineDeductions(calculatedGrossPay, period.type);
-
-            // Create deduction entries
-            const deductionEntries = [];
-            if (deductionsData.sss > 0) {
-              deductionEntries.push({
-                payslipId: payslip.id,
-                type: "sss" as const,
-                amount: deductionsData.sss.toFixed(2),
-                description: "SSS Contribution (4.5%)",
-              });
-            }
-            if (deductionsData.philhealth > 0) {
-              deductionEntries.push({
-                payslipId: payslip.id,
-                type: "philhealth" as const,
-                amount: deductionsData.philhealth.toFixed(2),
-                description: "PhilHealth Contribution (4%)",
-              });
-            }
-            if (deductionsData.pagibig > 0) {
-              deductionEntries.push({
-                payslipId: payslip.id,
-                type: "pagibig" as const,
-                amount: deductionsData.pagibig.toFixed(2),
-                description: "Pag-IBIG Contribution",
-              });
-            }
-            if (deductionsData.incomeTax > 0) {
-              deductionEntries.push({
-                payslipId: payslip.id,
-                type: "tax" as const,
-                amount: deductionsData.incomeTax.toFixed(2),
-                description: "Income Tax (BIR)",
-              });
-            }
-
-            if (deductionEntries.length > 0) {
-              await db.insert(deductions).values(deductionEntries);
-            }
-
-            // Calculate net pay = gross pay - total deductions
-            const calculatedNetPay = calculatedGrossPay - deductionsData.total;
-
-            // Update payslip totals
-            await db
-              .update(payslips)
-              .set({
-                grossPay: calculatedGrossPay.toFixed(2),
-                totalDeductions: deductionsData.total.toFixed(2),
-                netPay: calculatedNetPay.toFixed(2),
-              })
-              .where(eq(payslips.id, payslip.id));
           }
+          if (deductionsData.philhealth > 0) {
+            deductionEntries.push({
+              payslipId: payslip.id,
+              type: "philhealth" as const,
+              amount: deductionsData.philhealth.toFixed(2),
+              description: "PhilHealth Contribution (4%)",
+            });
+          }
+          if (deductionsData.pagibig > 0) {
+            deductionEntries.push({
+              payslipId: payslip.id,
+              type: "pagibig" as const,
+              amount: deductionsData.pagibig.toFixed(2),
+              description: "Pag-IBIG Contribution",
+            });
+          }
+          if (deductionsData.incomeTax > 0) {
+            deductionEntries.push({
+              payslipId: payslip.id,
+              type: "tax" as const,
+              amount: deductionsData.incomeTax.toFixed(2),
+              description: "Income Tax (BIR)",
+            });
+          }
+
+          if (deductionEntries.length > 0) {
+            await db.insert(deductions).values(deductionEntries);
+          }
+
+          // Calculate net pay = gross pay - total deductions
+          const calculatedNetPay = calculatedGrossPay - deductionsData.total;
+
+          // Update payslip totals
+          await db
+            .update(payslips)
+            .set({
+              grossPay: calculatedGrossPay.toFixed(2),
+              totalDeductions: deductionsData.total.toFixed(2),
+              netPay: calculatedNetPay.toFixed(2),
+            })
+            .where(eq(payslips.id, payslip.id));
         }
       }
     }

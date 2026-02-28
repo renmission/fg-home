@@ -76,7 +76,7 @@ Seed script requires: `ADMIN_EMAIL`, `ADMIN_PASSWORD`.
 Six roles: `admin`, `inventory_manager`, `payroll_manager`, `delivery_staff`, `pos_cashier`, `viewer`.
 All permissions are checked via `can(user, permission)` — see [`lib/auth/permissions.ts`](lib/auth/permissions.ts).
 
-## Fixing Bugs
+## Feature Development or Fixing Bugs
 
 **IMPORTANT:** When you work on a new feature, or bug, create a git branch first.
 Then work on changes in the branch for the remainder of the session.

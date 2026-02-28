@@ -19,7 +19,6 @@ export default async function DashboardPage() {
   const isPayrollManager = roles.includes(ROLES.PAYROLL_MANAGER);
   const isDeliveryStaff = roles.includes(ROLES.DELIVERY_STAFF);
   const isPosCashier = roles.includes(ROLES.POS_CASHIER);
-  const isViewer = roles.includes(ROLES.VIEWER);
 
   // Determine which dashboard to show (priority order)
   let DashboardComponent = ViewerDashboard;

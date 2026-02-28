@@ -115,26 +115,37 @@ export function can(user: SessionUser | null | undefined, permission: Permission
  * Nav groups with required permission (null = no permission gated, show to all authenticated).
  * Items within each group are filtered by permission at render time in the dashboard layout.
  */
-export type NavGroup = {
+export type NavItemConfig = {
+  href: string;
   label: string;
-  items: { href: string; label: string; permission: Permission | null }[];
+  permission: Permission | null;
+  excludeRoles?: string[];
 };
 
-export const NAV_TOP_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
+export type NavGroup = {
+  label: string;
+  items: NavItemConfig[];
+};
+
+export const NAV_TOP_ITEMS: NavItemConfig[] = [
   { href: "/dashboard", label: "Dashboard", permission: null },
-  { href: "/dashboard/personal-attendance", label: "My Attendance", permission: null },
   {
-    href: "/dashboard/deliveries",
-    label: "Deliveries",
-    permission: PERMISSIONS.DELIVERIES_READ,
+    href: "/dashboard/personal-attendance",
+    label: "My Attendance",
+    permission: null,
+    excludeRoles: [ROLES.ADMIN],
   },
-  { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
 ];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Retail & Sales",
     items: [
+      {
+        href: "/dashboard/deliveries",
+        label: "Deliveries",
+        permission: PERMISSIONS.DELIVERIES_READ,
+      },
       { href: "/dashboard/pos", label: "POS", permission: PERMISSIONS.POS_READ },
       { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
     ],
@@ -158,8 +169,9 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Settings",
+    label: "Administration",
     items: [
+      { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
       {
         href: "/dashboard/settings/categories",
         label: "Categories",

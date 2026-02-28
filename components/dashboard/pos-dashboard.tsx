@@ -62,12 +62,14 @@ export function PosDashboard() {
           value={`₱${Number(data.today?.totalAmount || 0).toLocaleString()}`}
           description={`${data.today?.transactionCount || 0} transactions`}
           icon={<Banknote className="h-4 w-4" />}
+          href="/dashboard/pos"
         />
         <DashboardCard
           title="Last 30 Days"
           value={`₱${Number(data.recent?.totalAmount || 0).toLocaleString()}`}
           description={`${data.recent?.transactionCount || 0} transactions`}
           icon={<TrendingUp className="h-4 w-4" />}
+          href="/dashboard/pos"
         />
         <DashboardCard
           title="Average per Day"

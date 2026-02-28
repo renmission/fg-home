@@ -62,12 +62,14 @@ export function DeliveryDashboard() {
           title="Total Deliveries"
           value={data.total || 0}
           icon={<Truck className="h-4 w-4" />}
+          href="/dashboard/deliveries"
         />
         <DashboardCard
           title="Pending Deliveries"
           value={data.pending || 0}
           description="Requires action"
           icon={<Clock className="h-4 w-4 text-orange-500" />}
+          href="/dashboard/deliveries"
         />
         <DashboardCard
           title="Status Types"

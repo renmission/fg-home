@@ -381,6 +381,7 @@ async function seed() {
       const departmentName = ROLE_DEPARTMENT_MAP[primaryRole] ?? "General";
 
       await db.insert(employees).values({
+        userId: u.id,
         name: u.name ?? u.email.split("@")[0],
         email: u.email,
         department: departmentName,
@@ -388,6 +389,13 @@ async function seed() {
         active: 1,
       });
       console.log(`Created employee record for: ${u.email} (${primaryRole})`);
+    } else if (!existingEmployee[0].userId) {
+      // Link the existing employee correctly
+      await db
+        .update(employees)
+        .set({ userId: u.id })
+        .where(eq(employees.id, existingEmployee[0].id));
+      console.log(`Linked existing employee record to user for: ${u.email}`);
     }
   }
 

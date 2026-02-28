@@ -341,6 +341,28 @@ export function IconPos({ className }: { className?: string }) {
   );
 }
 
+export function IconMyAttendance({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <polyline points="16 11 18 13 22 9" />
+    </svg>
+  );
+}
+
 export function IconCustomers({ className }: { className?: string }) {
   return (
     <svg
@@ -374,6 +396,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/dashboard/attendance": IconAttendance,
   "/dashboard/payroll": IconPayroll,
   "/dashboard/users": IconUsers,
+  "/dashboard/personal-attendance": IconMyAttendance,
   "/dashboard/settings/categories": IconCategories,
   "/dashboard/settings/units": IconUnits,
   "/dashboard/settings/departments": IconDepartments,

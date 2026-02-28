@@ -58,6 +58,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       .update(employees)
       .set({
         ...validatedData,
+        userId: validatedData.userId === "" ? null : validatedData.userId || existing.userId,
         rate: validatedData.rate ? validatedData.rate.toString() : existing.rate,
         updatedAt: new Date(),
       })

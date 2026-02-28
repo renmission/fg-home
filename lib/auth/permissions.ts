@@ -71,14 +71,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.ATTENDANCE_WRITE,
     PERMISSIONS.REPORTS_READ, // Can view payroll reports
   ],
-  [ROLES.DELIVERY_STAFF]: [
-    PERMISSIONS.INVENTORY_READ,
-    PERMISSIONS.DELIVERIES_READ,
-    PERMISSIONS.DELIVERIES_UPDATE_STATUS,
-    PERMISSIONS.CUSTOMERS_READ, // Read-only access to customers
-    PERMISSIONS.ATTENDANCE_READ,
-    PERMISSIONS.ATTENDANCE_WRITE,
-  ],
+  [ROLES.DELIVERY_STAFF]: [PERMISSIONS.DELIVERIES_READ, PERMISSIONS.DELIVERIES_UPDATE_STATUS],
   [ROLES.POS_CASHIER]: [
     PERMISSIONS.POS_READ,
     PERMISSIONS.POS_WRITE,
@@ -129,7 +122,12 @@ export type NavGroup = {
 
 export const NAV_TOP_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
   { href: "/dashboard", label: "Dashboard", permission: null },
-  { href: "/dashboard/personal-attendance", label: "Personal / Attendance", permission: null },
+  { href: "/dashboard/personal-attendance", label: "My Attendance", permission: null },
+  {
+    href: "/dashboard/deliveries",
+    label: "Deliveries",
+    permission: PERMISSIONS.DELIVERIES_READ,
+  },
   { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
 ];
 
@@ -138,11 +136,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Retail & Sales",
     items: [
       { href: "/dashboard/pos", label: "POS", permission: PERMISSIONS.POS_READ },
-      {
-        href: "/dashboard/deliveries",
-        label: "Deliveries",
-        permission: PERMISSIONS.DELIVERIES_READ,
-      },
       { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
     ],
   },

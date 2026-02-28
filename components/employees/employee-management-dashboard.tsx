@@ -426,7 +426,6 @@ function EmployeeFormDialog({
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["users", { disabled: false }],
     queryFn: () => fetchUsers({ disabled: false, limit: 100 }), // simple limit to get list of users
-    enabled: !isEdit, // Only fetching on creation
   });
 
   // Available departments
@@ -459,6 +458,7 @@ function EmployeeFormDialog({
     e.preventDefault();
     if (isEdit) {
       onSubmit({
+        userId: userId.trim() || "",
         name: name.trim(),
         email: email.trim() || undefined,
         department: department.trim() || undefined,
@@ -504,28 +504,26 @@ function EmployeeFormDialog({
               </p>
             )}
 
-            {!isEdit && (
-              <div>
-                <Label htmlFor="system-user">Link to System User (Optional)</Label>
-                <select
-                  id="system-user"
-                  className="input-select mt-2 w-full"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  disabled={usersLoading}
-                >
-                  <option value="">No linked user</option>
-                  {usersData?.data?.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.email})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Linking allows the user to log personal attendance.
-                </p>
-              </div>
-            )}
+            <div>
+              <Label htmlFor="system-user">Link to System User (Optional)</Label>
+              <select
+                id="system-user"
+                className="input-select mt-2 w-full"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                disabled={usersLoading}
+              >
+                <option value="">No linked user</option>
+                {usersData?.data?.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Linking allows the user to log personal attendance.
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

@@ -44,7 +44,12 @@ export async function GET(request: Request) {
 
     // To check if they are present today, we query attendanceDays directly joined with attendance
     const todayRecord = await db
-      .select({ id: attendanceDays.id })
+      .select({
+        id: attendanceDays.id,
+        clockInTime: attendanceDays.clockInTime,
+        clockOutTime: attendanceDays.clockOutTime,
+        hoursWorked: attendanceDays.hoursWorked,
+      })
       .from(attendanceDays)
       .innerJoin(attendance, eq(attendance.id, attendanceDays.attendanceId))
       .where(and(eq(attendance.employeeId, employeeRecord.id), eq(attendanceDays.date, todayStr)))
@@ -61,6 +66,7 @@ export async function GET(request: Request) {
       employee: employeeRecord,
       period: currentPeriod || null,
       presentToday,
+      todayRecord: todayRecord[0] || null,
     });
   } catch (error) {
     console.error("[PERSONAL_ATTENDANCE_GET]", error);
@@ -91,67 +97,100 @@ export async function POST(request: Request) {
       orderBy: desc(payPeriods.createdAt),
     });
 
-    // First check if they are already present today to avoid duplicate entries
-    // even if pay periods shift
-    const todayRecord = await db
-      .select({ id: attendanceDays.id })
-      .from(attendanceDays)
-      .innerJoin(attendance, eq(attendance.id, attendanceDays.attendanceId))
-      .where(and(eq(attendance.employeeId, employeeRecord.id), eq(attendanceDays.date, todayStr)))
-      .limit(1);
+    const { action, notes } = await request.json().catch(() => ({ action: "clock_in", notes: "" }));
 
-    if (todayRecord.length > 0) {
-      return new NextResponse("Already marked present", { status: 400 });
+    if (action === "clock_in") {
+      // First check if they are already present today to avoid duplicate entries
+      const todayRecord = await db
+        .select({ id: attendanceDays.id })
+        .from(attendanceDays)
+        .innerJoin(attendance, eq(attendance.id, attendanceDays.attendanceId))
+        .where(and(eq(attendance.employeeId, employeeRecord.id), eq(attendanceDays.date, todayStr)))
+        .limit(1);
+
+      if (todayRecord.length > 0) {
+        return new NextResponse("Already clocked in", { status: 400 });
+      }
+
+      // Now find or create the parent attendance record for the current period
+      // If there's no active period, it will use null
+      const periodId = currentPeriod ? currentPeriod.id : null;
+      let currentAttendance = await db.query.attendance.findFirst({
+        where: and(
+          eq(attendance.employeeId, employeeRecord.id),
+          periodId ? eq(attendance.payPeriodId, periodId) : sql`${attendance.payPeriodId} IS NULL`
+        ),
+      });
+
+      if (!currentAttendance) {
+        const [newAtt] = await db
+          .insert(attendance)
+          .values({
+            employeeId: employeeRecord.id,
+            payPeriodId: periodId,
+            submittedById: user.id,
+            status: "on_time",
+          })
+          .returning();
+        currentAttendance = newAtt;
+      }
+
+      // Insert today's record
+      await db.insert(attendanceDays).values({
+        attendanceId: currentAttendance.id,
+        date: todayStr,
+        present: 1,
+        clockInTime: new Date(),
+        notes: notes || null,
+      });
+
+      return NextResponse.json({ success: true, message: "Clocked in successfully" });
     }
 
-    // Now find or create the parent attendance record for the current period
-    // If there's no active period, it will use null
-    const periodId = currentPeriod ? currentPeriod.id : null;
-    let currentAttendance = await db.query.attendance.findFirst({
-      where: and(
-        eq(attendance.employeeId, employeeRecord.id),
-        periodId ? eq(attendance.payPeriodId, periodId) : sql`${attendance.payPeriodId} IS NULL`
-      ),
-    });
-
-    if (!currentAttendance) {
-      const [newAtt] = await db
-        .insert(attendance)
-        .values({
-          employeeId: employeeRecord.id,
-          payPeriodId: periodId,
-          submittedById: user.id,
-          status: "on_time",
+    if (action === "clock_out") {
+      // Find today's record
+      const todayRecords = await db
+        .select({
+          id: attendanceDays.id,
+          clockInTime: attendanceDays.clockInTime,
+          clockOutTime: attendanceDays.clockOutTime,
+          employeeId: attendance.employeeId,
         })
-        .returning();
-      currentAttendance = newAtt;
+        .from(attendanceDays)
+        .innerJoin(attendance, eq(attendance.id, attendanceDays.attendanceId))
+        .where(eq(attendanceDays.date, todayStr))
+        .limit(1);
+
+      const todayRecord = todayRecords[0];
+
+      if (!todayRecord || todayRecord.employeeId !== employeeRecord.id) {
+        return new NextResponse("No active clock in found for today", { status: 404 });
+      }
+
+      if (todayRecord.clockOutTime) {
+        return new NextResponse("Already clocked out", { status: 400 });
+      }
+
+      if (!todayRecord.clockInTime) {
+        return new NextResponse("Missing clock in time", { status: 400 });
+      }
+
+      const clockOutTime = new Date();
+      const diffMs = clockOutTime.getTime() - todayRecord.clockInTime.getTime();
+      const hoursWorked = diffMs / (1000 * 60 * 60);
+
+      await db
+        .update(attendanceDays)
+        .set({
+          clockOutTime,
+          hoursWorked: hoursWorked.toFixed(2),
+        })
+        .where(eq(attendanceDays.id, todayRecord.id));
+
+      return NextResponse.json({ success: true, message: "Clocked out successfully" });
     }
 
-    // Insert today's record
-    const existingDay = await db.query.attendanceDays.findFirst({
-      where: and(
-        eq(attendanceDays.attendanceId, currentAttendance.id),
-        eq(attendanceDays.date, todayStr)
-      ),
-    });
-
-    if (existingDay) {
-      return new NextResponse("Already marked present", { status: 400 });
-    }
-
-    const { hoursWorked, notes } = await request
-      .json()
-      .catch(() => ({ hoursWorked: 8, notes: "" }));
-
-    await db.insert(attendanceDays).values({
-      attendanceId: currentAttendance.id,
-      date: todayStr,
-      present: 1,
-      hoursWorked: hoursWorked ? String(hoursWorked) : "8.00",
-      notes: notes || null,
-    });
-
-    return NextResponse.json({ success: true });
+    return new NextResponse("Invalid action. Use 'clock_in' or 'clock_out'.", { status: 400 });
   } catch (error) {
     console.error("[PERSONAL_ATTENDANCE_POST]", error);
     return new NextResponse("Internal server error", { status: 500 });

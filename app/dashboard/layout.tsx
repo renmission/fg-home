@@ -7,6 +7,7 @@ import {
   can,
   type SessionUser,
   type NavItemConfig,
+  ROLES,
 } from "@/lib/auth/permissions";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -23,13 +24,37 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const topNavItems = NAV_TOP_ITEMS.filter(isVisible).map(({ href, label }) => ({ href, label }));
 
-  const visibleNavGroups = NAV_GROUPS.map((group) => ({
-    label: group.label,
-    items: group.items
-      .filter(isVisible)
-      .map(({ href, label }) => ({ href, label }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-  })).filter((group) => group.items.length > 0);
+  const isHRAdmin =
+    user.roles?.includes(ROLES.ADMIN) || user.roles?.includes(ROLES.PAYROLL_MANAGER);
+
+  const visibleNavGroups = NAV_GROUPS.map((group) => {
+    // Admin/HR roles should only see Human Resources group
+    if (isHRAdmin) {
+      if (group.label === "Human Resources") {
+        return {
+          label: group.label,
+          items: group.items
+            .filter(isVisible)
+            .map(({ href, label }) => ({ href, label }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        };
+      }
+      return { label: group.label, items: [] };
+    }
+
+    // Non-Admin/HR roles should NOT see Human Resources group
+    if (group.label === "Human Resources") {
+      return { label: group.label, items: [] };
+    }
+
+    return {
+      label: group.label,
+      items: group.items
+        .filter(isVisible)
+        .map(({ href, label }) => ({ href, label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  }).filter((group) => group.items.length > 0);
 
   return (
     <DashboardShell topNavItems={topNavItems} navGroups={visibleNavGroups} user={user}>

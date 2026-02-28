@@ -88,6 +88,25 @@ export const deliveryAverageTimeQuerySchema = dateRangeSchema.extend({
   format: z.enum(["json", "csv", "pdf"]).optional().default("json"),
 });
 
+// Sales Reports
+export const salesSummaryQuerySchema = dateRangeSchema.extend({
+  format: z.enum(["json", "csv", "pdf"]).optional().default("json"),
+});
+
+export const salesTransactionsQuerySchema = dateRangeSchema.extend({
+  status: z.enum(["completed", "voided"]).optional(),
+  format: z.enum(["json", "csv", "pdf"]).optional().default("json"),
+});
+
+export const salesTopProductsQuerySchema = dateRangeSchema.extend({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+  format: z.enum(["json", "csv", "pdf"]).optional().default("json"),
+});
+
+export const salesByPaymentMethodQuerySchema = dateRangeSchema.extend({
+  format: z.enum(["json", "csv", "pdf"]).optional().default("json"),
+});
+
 // Type exports
 export type InventoryStockLevelsQuery = z.infer<typeof inventoryStockLevelsQuerySchema>;
 export type InventoryMovementSummaryQuery = z.infer<typeof inventoryMovementSummaryQuerySchema>;
@@ -106,3 +125,8 @@ export type PayrollTaxContributionSummaryQuery = z.infer<
 export type DeliveryByStatusQuery = z.infer<typeof deliveryByStatusQuerySchema>;
 export type DeliveryByDateRangeQuery = z.infer<typeof deliveryByDateRangeQuerySchema>;
 export type DeliveryAverageTimeQuery = z.infer<typeof deliveryAverageTimeQuerySchema>;
+
+export type SalesSummaryQuery = z.infer<typeof salesSummaryQuerySchema>;
+export type SalesTransactionsQuery = z.infer<typeof salesTransactionsQuerySchema>;
+export type SalesTopProductsQuery = z.infer<typeof salesTopProductsQuerySchema>;
+export type SalesByPaymentMethodQuery = z.infer<typeof salesByPaymentMethodQuerySchema>;

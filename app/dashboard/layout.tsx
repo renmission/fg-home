@@ -24,29 +24,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const topNavItems = NAV_TOP_ITEMS.filter(isVisible).map(({ href, label }) => ({ href, label }));
 
-  const isHRAdmin =
-    user.roles?.includes(ROLES.ADMIN) || user.roles?.includes(ROLES.PAYROLL_MANAGER);
+  const isAdmin = user.roles?.includes(ROLES.ADMIN);
+  const isHR = user.roles?.includes(ROLES.PAYROLL_MANAGER);
 
   const visibleNavGroups = NAV_GROUPS.map((group) => {
-    // Admin/HR roles should only see Human Resources group
-    if (isHRAdmin) {
-      if (group.label === "Human Resources") {
-        return {
-          label: group.label,
-          items: group.items
-            .filter(isVisible)
-            .map(({ href, label }) => ({ href, label }))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        };
-      }
+    const isHRGroup = group.label === "Human Resources";
+
+    // If it's the HR group, only show to Admin or HR staff
+    if (isHRGroup && !isAdmin && !isHR) {
       return { label: group.label, items: [] };
     }
 
-    // Non-Admin/HR roles should NOT see Human Resources group
-    if (group.label === "Human Resources") {
+    // If user is HR staff (non-admin), they ONLY see the HR group
+    if (isHR && !isAdmin && !isHRGroup) {
       return { label: group.label, items: [] };
     }
 
+    // Default: filter items by permission
     return {
       label: group.label,
       items: group.items

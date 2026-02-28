@@ -205,6 +205,99 @@ export function IconSettings({ className }: { className?: string }) {
   );
 }
 
+export function IconCategories({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconUnits({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" />
+      <path d="m14.5 12.5 2-2" />
+      <path d="m11.5 9.5 2-2" />
+      <path d="m8.5 6.5 2-2" />
+      <path d="m17.5 15.5 2-2" />
+    </svg>
+  );
+}
+
+export function IconDepartments({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      <path d="M10 6h4" />
+      <path d="M10 10h4" />
+      <path d="M10 14h4" />
+      <path d="M10 18h4" />
+    </svg>
+  );
+}
+
+export function IconReports({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <line x1="18" x2="18" y1="20" y2="10" />
+      <line x1="12" x2="12" y1="20" y2="4" />
+      <line x1="6" x2="6" y1="20" y2="14" />
+    </svg>
+  );
+}
+
 export function IconChevronDown({ className }: { className?: string }) {
   return (
     <svg
@@ -273,16 +366,17 @@ export function IconCustomers({ className }: { className?: string }) {
 
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/dashboard": IconDashboard,
+  "/dashboard/reports": IconReports,
   "/dashboard/pos": IconPos,
-  "/dashboard/inventory": IconInventory,
-  "/dashboard/payroll": IconPayroll,
-  "/dashboard/attendance": IconAttendance,
   "/dashboard/deliveries": IconDeliveries,
   "/dashboard/customers": IconCustomers,
+  "/dashboard/inventory": IconInventory,
+  "/dashboard/attendance": IconAttendance,
+  "/dashboard/payroll": IconPayroll,
   "/dashboard/users": IconUsers,
-  "/dashboard/settings/categories": IconSettings,
-  "/dashboard/settings/units": IconSettings,
-  "/dashboard/settings/departments": IconSettings,
+  "/dashboard/settings/categories": IconCategories,
+  "/dashboard/settings/units": IconUnits,
+  "/dashboard/settings/departments": IconDepartments,
 };
 
 export function getNavIcon(href: string) {

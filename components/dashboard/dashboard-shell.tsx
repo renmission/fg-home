@@ -6,7 +6,7 @@ import Image from "next/image";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
-import type { NavItem } from "@/components/dashboard/dashboard-nav";
+import type { NavGroup, NavItem } from "@/components/dashboard/dashboard-nav";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import type { UserMenuUser } from "@/components/dashboard/user-menu";
@@ -91,13 +91,13 @@ const PanelLeftIcon = () => (
 );
 
 export function DashboardShell({
-  navItems,
-  settingsNavItems = [],
+  topNavItems = [],
+  navGroups,
   user,
   children,
 }: {
-  navItems: NavItem[];
-  settingsNavItems?: NavItem[];
+  topNavItems?: NavItem[];
+  navGroups: NavGroup[];
   user: UserMenuUser;
   children: React.ReactNode;
 }) {
@@ -216,8 +216,8 @@ export function DashboardShell({
             </Button>
           </div>
           <DashboardNav
-            items={navItems}
-            settingsItems={settingsNavItems}
+            topItems={topNavItems}
+            groups={navGroups}
             onNavigate={handleNavNavigate}
             collapsed={!sidebarOpen}
           />

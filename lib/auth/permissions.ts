@@ -119,16 +119,65 @@ export function can(user: SessionUser | null | undefined, permission: Permission
 }
 
 /**
- * Nav items with required permission (null = no permission gated, show to all authenticated).
+ * Nav groups with required permission (null = no permission gated, show to all authenticated).
+ * Items within each group are filtered by permission at render time in the dashboard layout.
  */
-export const NAV_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
+export type NavGroup = {
+  label: string;
+  items: { href: string; label: string; permission: Permission | null }[];
+};
+
+/** Standalone items rendered above the collapsible groups (no category header). */
+export const NAV_TOP_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
   { href: "/dashboard", label: "Dashboard", permission: null },
-  { href: "/dashboard/pos", label: "POS", permission: PERMISSIONS.POS_READ },
-  { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
-  { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
-  { href: "/dashboard/attendance", label: "Attendance", permission: PERMISSIONS.ATTENDANCE_READ },
-  { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
-  { href: "/dashboard/deliveries", label: "Deliveries", permission: PERMISSIONS.DELIVERIES_READ },
-  { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
   { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
+];
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Retail & Sales",
+    items: [
+      { href: "/dashboard/pos", label: "POS", permission: PERMISSIONS.POS_READ },
+      {
+        href: "/dashboard/deliveries",
+        label: "Deliveries",
+        permission: PERMISSIONS.DELIVERIES_READ,
+      },
+      { href: "/dashboard/customers", label: "Customers", permission: PERMISSIONS.CUSTOMERS_READ },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { href: "/dashboard/inventory", label: "Inventory", permission: PERMISSIONS.INVENTORY_READ },
+    ],
+  },
+  {
+    label: "Human Resources",
+    items: [
+      {
+        href: "/dashboard/attendance",
+        label: "Attendance",
+        permission: PERMISSIONS.ATTENDANCE_READ,
+      },
+      { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
+      { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      {
+        href: "/dashboard/settings/categories",
+        label: "Categories",
+        permission: PERMISSIONS.SETTINGS_READ,
+      },
+      { href: "/dashboard/settings/units", label: "Units", permission: PERMISSIONS.SETTINGS_READ },
+      {
+        href: "/dashboard/settings/departments",
+        label: "Departments",
+        permission: PERMISSIONS.SETTINGS_READ,
+      },
+    ],
+  },
 ];

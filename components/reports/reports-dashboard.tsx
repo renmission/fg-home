@@ -39,7 +39,7 @@ function IconDownload({ className }: { className?: string }) {
   );
 }
 
-type Tab = "inventory" | "payroll" | "deliveries";
+type Tab = "inventory" | "payroll" | "deliveries" | "sales";
 
 // API fetch functions
 async function fetchReport(url: string, params: Record<string, string | undefined>) {
@@ -104,6 +104,11 @@ export function ReportsDashboard({ user }: { user: SessionUser | null }) {
   const [deliveryDateFrom, setDeliveryDateFrom] = useState("");
   const [deliveryDateTo, setDeliveryDateTo] = useState("");
   const [deliveryStatus, setDeliveryStatus] = useState("");
+
+  // Sales filters
+  const [salesDateFrom, setSalesDateFrom] = useState("");
+  const [salesDateTo, setSalesDateTo] = useState("");
+  const [salesStatus, setSalesStatus] = useState("");
 
   // Inventory Reports
   const { data: stockLevelsData, isLoading: stockLevelsLoading } = useQuery({
@@ -191,6 +196,48 @@ export function ReportsDashboard({ user }: { user: SessionUser | null }) {
     enabled: canViewReports,
   });
 
+  // Sales Reports
+  const { data: salesSummaryData, isLoading: salesSummaryLoading } = useQuery({
+    queryKey: ["reports", "sales", "summary", salesDateFrom, salesDateTo],
+    queryFn: () =>
+      fetchReport("/api/reports/sales/summary", {
+        dateFrom: salesDateFrom || undefined,
+        dateTo: salesDateTo || undefined,
+      }),
+    enabled: canViewReports && activeTab === "sales",
+  });
+
+  const { data: salesTransactionsData, isLoading: salesTransactionsLoading } = useQuery({
+    queryKey: ["reports", "sales", "transactions", salesDateFrom, salesDateTo, salesStatus],
+    queryFn: () =>
+      fetchReport("/api/reports/sales/transactions", {
+        dateFrom: salesDateFrom || undefined,
+        dateTo: salesDateTo || undefined,
+        status: salesStatus || undefined,
+      }),
+    enabled: canViewReports && activeTab === "sales",
+  });
+
+  const { data: salesTopProductsData, isLoading: salesTopProductsLoading } = useQuery({
+    queryKey: ["reports", "sales", "top-products", salesDateFrom, salesDateTo],
+    queryFn: () =>
+      fetchReport("/api/reports/sales/top-products", {
+        dateFrom: salesDateFrom || undefined,
+        dateTo: salesDateTo || undefined,
+      }),
+    enabled: canViewReports && activeTab === "sales",
+  });
+
+  const { data: salesByPaymentMethodData, isLoading: salesByPaymentMethodLoading } = useQuery({
+    queryKey: ["reports", "sales", "by-payment-method", salesDateFrom, salesDateTo],
+    queryFn: () =>
+      fetchReport("/api/reports/sales/by-payment-method", {
+        dateFrom: salesDateFrom || undefined,
+        dateTo: salesDateTo || undefined,
+      }),
+    enabled: canViewReports && activeTab === "sales",
+  });
+
   if (!canViewReports) {
     return (
       <div className="space-y-4 sm:space-y-6">
@@ -211,13 +258,26 @@ export function ReportsDashboard({ user }: { user: SessionUser | null }) {
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">Reports</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            View and export reports for inventory, payroll, and deliveries
+            View and export reports for sales, inventory, payroll, and deliveries
           </p>
         </div>
       </div>
 
       <div className="border-b border-border overflow-x-auto">
         <div className="flex gap-0 min-w-0" role="tablist" aria-label="Report sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "sales"}
+            className={`min-h-11 touch-manipulation flex-shrink-0 rounded-t-md border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "sales"
+                ? "border-primary bg-muted/50 text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+            }`}
+            onClick={() => setActiveTab("sales")}
+          >
+            Sales
+          </button>
           {canViewInventoryReports && (
             <button
               type="button"
@@ -263,6 +323,394 @@ export function ReportsDashboard({ user }: { user: SessionUser | null }) {
           </button>
         </div>
       </div>
+
+      {/* Sales Reports */}
+      {activeTab === "sales" && (
+        <div className="space-y-4 sm:space-y-6">
+          {/* Date + Status Filters */}
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="sales-date-from" className="text-xs text-muted-foreground">
+                    From
+                  </Label>
+                  <Input
+                    id="sales-date-from"
+                    type="date"
+                    value={salesDateFrom}
+                    onChange={(e) => setSalesDateFrom(e.target.value)}
+                    className="h-9 w-40"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="sales-date-to" className="text-xs text-muted-foreground">
+                    To
+                  </Label>
+                  <Input
+                    id="sales-date-to"
+                    type="date"
+                    value={salesDateTo}
+                    onChange={(e) => setSalesDateTo(e.target.value)}
+                    className="h-9 w-40"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="sales-status" className="text-xs text-muted-foreground">
+                    Status
+                  </Label>
+                  <select
+                    id="sales-status"
+                    value={salesStatus}
+                    onChange={(e) => setSalesStatus(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">All</option>
+                    <option value="completed">Completed</option>
+                    <option value="voided">Voided</option>
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sales Summary */}
+          <Card>
+            <CardHeader className="pb-4 p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base">Sales Summary</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() =>
+                      downloadCSV("/api/reports/sales/summary", {
+                        dateFrom: salesDateFrom || undefined,
+                        dateTo: salesDateTo || undefined,
+                      })
+                    }
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (salesDateFrom) params.append("dateFrom", salesDateFrom);
+                      if (salesDateTo) params.append("dateTo", salesDateTo);
+                      params.append("format", "pdf");
+                      window.open(`/api/reports/sales/summary?${params.toString()}`, "_blank");
+                    }}
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              {salesSummaryLoading ? (
+                <p className="text-muted-foreground">Loading...</p>
+              ) : salesSummaryData?.data ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg bg-muted/40 p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Total Revenue
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {formatMoney(salesSummaryData.data.totalRevenue)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Transactions
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {salesSummaryData.data.transactionCount}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {salesSummaryData.data.completedCount} completed ·{" "}
+                      {salesSummaryData.data.voidedCount} voided
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Avg Order Value
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {formatMoney(salesSummaryData.data.avgOrderValue)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-4 col-span-2 sm:col-span-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Total Discounts Given
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {formatMoney(salesSummaryData.data.totalDiscounts)}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No data available</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Transactions */}
+          <Card>
+            <CardHeader className="pb-4 p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base">
+                  Transactions
+                  {salesTransactionsData?.total !== undefined && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      ({salesTransactionsData.total})
+                    </span>
+                  )}
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() =>
+                      downloadCSV("/api/reports/sales/transactions", {
+                        dateFrom: salesDateFrom || undefined,
+                        dateTo: salesDateTo || undefined,
+                        status: salesStatus || undefined,
+                      })
+                    }
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (salesDateFrom) params.append("dateFrom", salesDateFrom);
+                      if (salesDateTo) params.append("dateTo", salesDateTo);
+                      if (salesStatus) params.append("status", salesStatus);
+                      params.append("format", "pdf");
+                      window.open(`/api/reports/sales/transactions?${params.toString()}`, "_blank");
+                    }}
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              {salesTransactionsLoading ? (
+                <p className="text-muted-foreground">Loading...</p>
+              ) : salesTransactionsData?.data?.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Cashier</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                        <TableHead className="text-right">Discount</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>Completed At</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesTransactionsData.data.map((item: Record<string, unknown>) => (
+                        <TableRow key={String(item.id ?? "")}>
+                          <TableCell className="capitalize">{String(item.status ?? "")}</TableCell>
+                          <TableCell>{String(item.cashierName ?? "-")}</TableCell>
+                          <TableCell className="text-right">
+                            {formatMoney(item.subtotal as string)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatMoney(item.discountAmount as string)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatMoney(item.total as string)}
+                          </TableCell>
+                          <TableCell>
+                            {item.completedAt ? formatDate(item.completedAt as string) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No transactions found</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Top Products */}
+          <Card>
+            <CardHeader className="pb-4 p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base">Top Selling Products</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() =>
+                      downloadCSV("/api/reports/sales/top-products", {
+                        dateFrom: salesDateFrom || undefined,
+                        dateTo: salesDateTo || undefined,
+                      })
+                    }
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (salesDateFrom) params.append("dateFrom", salesDateFrom);
+                      if (salesDateTo) params.append("dateTo", salesDateTo);
+                      params.append("format", "pdf");
+                      window.open(`/api/reports/sales/top-products?${params.toString()}`, "_blank");
+                    }}
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              {salesTopProductsLoading ? (
+                <p className="text-muted-foreground">Loading...</p>
+              ) : salesTopProductsData?.data?.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>#</TableHead>
+                        <TableHead>Product</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead className="text-right">Qty Sold</TableHead>
+                        <TableHead className="text-right">Revenue</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesTopProductsData.data.map(
+                        (item: Record<string, unknown>, idx: number) => (
+                          <TableRow key={String(item.productId ?? "")}>
+                            <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                            <TableCell className="font-medium">
+                              {String(item.productName ?? "")}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {String(item.productSku ?? "")}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {String(item.totalQuantitySold ?? 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatMoney(item.totalRevenue as string)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No data available</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Revenue by Payment Method */}
+          <Card>
+            <CardHeader className="pb-4 p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-base">Revenue by Payment Method</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() =>
+                      downloadCSV("/api/reports/sales/by-payment-method", {
+                        dateFrom: salesDateFrom || undefined,
+                        dateTo: salesDateTo || undefined,
+                      })
+                    }
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto min-h-9 touch-manipulation"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (salesDateFrom) params.append("dateFrom", salesDateFrom);
+                      if (salesDateTo) params.append("dateTo", salesDateTo);
+                      params.append("format", "pdf");
+                      window.open(
+                        `/api/reports/sales/by-payment-method?${params.toString()}`,
+                        "_blank"
+                      );
+                    }}
+                  >
+                    <IconDownload className="mr-2 h-4 w-4" />
+                    Export PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              {salesByPaymentMethodLoading ? (
+                <p className="text-muted-foreground">Loading...</p>
+              ) : salesByPaymentMethodData?.data?.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Payment Method</TableHead>
+                        <TableHead className="text-right">Transactions</TableHead>
+                        <TableHead className="text-right">Total Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {salesByPaymentMethodData.data.map((item: Record<string, unknown>) => (
+                        <TableRow key={String(item.method ?? "")}>
+                          <TableCell className="font-medium">
+                            {String(item.methodLabel ?? item.method ?? "")}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {String(item.transactionCount ?? 0)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatMoney(item.totalAmount as string)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No data available</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Inventory Reports */}
       {canViewInventoryReports && activeTab === "inventory" && (

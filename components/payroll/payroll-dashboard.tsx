@@ -10,6 +10,9 @@ import {
   createPayrollRun,
   finalizePayrollRun,
   fetchPayslip,
+  updatePayPeriod,
+  deletePayPeriod,
+  deletePayrollRun,
   type PayPeriodListItem,
   type PayslipDetail,
 } from "@/lib/payroll-api";
@@ -152,6 +155,7 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
   const [periodPage, setPeriodPage] = useState(1);
   const [periodLimit, setPeriodLimit] = useState(20);
   const [periodDialog, setPeriodDialog] = useState(false);
+  const [editPeriod, setEditPeriod] = useState<PayPeriodListItem | null>(null);
   const [runsPage, setRunsPage] = useState(1);
   const [runsLimit, setRunsLimit] = useState(20);
   const [runsPeriodId, setRunsPeriodId] = useState("");
@@ -222,6 +226,24 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
     },
   });
 
+  const updatePeriodMutation = useMutation({
+    mutationFn: ({ id, variables }: { id: string; variables: PayPeriodFormValues }) =>
+      updatePayPeriod(id, variables),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PAY_PERIODS_KEY });
+      setPeriodDialog(false);
+      setEditPeriod(null);
+    },
+  });
+
+  const deletePeriodMutation = useMutation({
+    mutationFn: deletePayPeriod,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PAY_PERIODS_KEY });
+      queryClient.invalidateQueries({ queryKey: PAYROLL_RUNS_KEY });
+    },
+  });
+
   const createRunMutation = useMutation({
     mutationFn: createPayrollRun,
     onSuccess: () => {
@@ -239,6 +261,14 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
     },
   });
 
+  const deleteRunMutation = useMutation({
+    mutationFn: deletePayrollRun,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PAYROLL_RUNS_KEY });
+      queryClient.invalidateQueries({ queryKey: PAYSLIPS_KEY });
+    },
+  });
+
   const handleViewPayslip = useCallback((id: string) => {
     setPayslipViewId(id);
   }, []);
@@ -249,7 +279,10 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
         <h1 className="text-xl font-semibold sm:text-2xl">Payroll</h1>
         {canWrite && tab === "periods" && (
           <Button
-            onClick={() => setPeriodDialog(true)}
+            onClick={() => {
+              setEditPeriod(null);
+              setPeriodDialog(true);
+            }}
             className="w-full min-h-11 touch-manipulation sm:w-auto sm:min-h-0"
           >
             Add pay period
@@ -299,10 +332,11 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <colgroup>
-                      <col style={{ width: "25%" }} />
-                      <col style={{ width: "25%" }} />
-                      <col style={{ width: "25%" }} />
-                      <col style={{ width: "25%" }} />
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "15%" }} />
+                      {canWrite && <col style={{ width: "25%" }} />}
                     </colgroup>
                     <TableHeader>
                       <TableRow>
@@ -310,6 +344,7 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
                         <TableHead>End</TableHead>
                         <TableHead>Pay date</TableHead>
                         <TableHead>Type</TableHead>
+                        {canWrite && <TableHead className="text-right">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -326,6 +361,37 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
                             <TableCell>{p.endDate}</TableCell>
                             <TableCell>{p.payDate}</TableCell>
                             <TableCell className="capitalize">{p.type.replace("_", "-")}</TableCell>
+                            {canWrite && (
+                              <TableCell className="text-right whitespace-nowrap">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditPeriod(p);
+                                    setPeriodDialog(true);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive/90"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        "Delete this pay period? This action cannot be undone unless it has finalized payroll runs."
+                                      )
+                                    ) {
+                                      deletePeriodMutation.mutate(p.id);
+                                    }
+                                  }}
+                                  disabled={deletePeriodMutation.isPending}
+                                >
+                                  Delete
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))
                       )}
@@ -421,19 +487,37 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
                               {new Date(r.createdAt).toLocaleString()}
                             </TableCell>
                             {canWrite && (
-                              <TableCell className="whitespace-nowrap">
+                              <TableCell className="whitespace-nowrap flex gap-2">
                                 {r.status === "draft" && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (confirm("Finalize this run? Payslips will be locked."))
-                                        finalizeRunMutation.mutate(r.id);
-                                    }}
-                                    disabled={finalizeRunMutation.isPending}
-                                  >
-                                    Finalize
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (confirm("Finalize this run? Payslips will be locked."))
+                                          finalizeRunMutation.mutate(r.id);
+                                      }}
+                                      disabled={finalizeRunMutation.isPending}
+                                    >
+                                      Finalize
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive hover:text-destructive/90"
+                                      onClick={() => {
+                                        if (
+                                          confirm(
+                                            "Delete this draft payroll run? All draft payslips will be permanently removed."
+                                          )
+                                        )
+                                          deleteRunMutation.mutate(r.id);
+                                      }}
+                                      disabled={deleteRunMutation.isPending}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
                                 )}
                               </TableCell>
                             )}
@@ -578,10 +662,26 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
 
       {periodDialog && (
         <PayPeriodFormDialog
-          onClose={() => setPeriodDialog(false)}
-          onSubmit={(body) => createPeriodMutation.mutate(body)}
-          isSubmitting={createPeriodMutation.isPending}
-          error={createPeriodMutation.error ? getErrorMessage(createPeriodMutation.error) : null}
+          initialData={editPeriod}
+          onClose={() => {
+            setPeriodDialog(false);
+            setEditPeriod(null);
+          }}
+          onSubmit={(body) => {
+            if (editPeriod) {
+              updatePeriodMutation.mutate({ id: editPeriod.id, variables: body });
+            } else {
+              createPeriodMutation.mutate(body);
+            }
+          }}
+          isSubmitting={createPeriodMutation.isPending || updatePeriodMutation.isPending}
+          error={
+            createPeriodMutation.error
+              ? getErrorMessage(createPeriodMutation.error)
+              : updatePeriodMutation.error
+                ? getErrorMessage(updatePeriodMutation.error)
+                : null
+          }
         />
       )}
 
@@ -603,20 +703,24 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
 }
 
 function PayPeriodFormDialog({
+  initialData,
   onClose,
   onSubmit,
   isSubmitting,
   error,
 }: {
+  initialData?: PayPeriodListItem | null;
   onClose: () => void;
   onSubmit: (body: PayPeriodFormValues) => void;
   isSubmitting: boolean;
   error?: string | null;
 }) {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [payDate, setPayDate] = useState("");
-  const [type, setType] = useState<"weekly" | "bi_weekly" | "monthly">("monthly");
+  const [startDate, setStartDate] = useState(initialData?.startDate ?? "");
+  const [endDate, setEndDate] = useState(initialData?.endDate ?? "");
+  const [payDate, setPayDate] = useState(initialData?.payDate ?? "");
+  const [type, setType] = useState<"weekly" | "bi_weekly" | "monthly">(
+    (initialData?.type as "weekly" | "bi_weekly" | "monthly") ?? "monthly"
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -627,7 +731,9 @@ function PayPeriodFormDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
       <Card className="w-full max-w-md max-h-[90vh] flex flex-col shadow-xl">
         <CardHeader className="flex flex-row items-center justify-between shrink-0 p-4 sm:p-6">
-          <CardTitle className="text-lg sm:text-xl">New pay period</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">
+            {initialData ? "Edit pay period" : "New pay period"}
+          </CardTitle>
           <Button
             variant="ghost"
             size="icon"
@@ -697,7 +803,7 @@ function PayPeriodFormDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                Create
+                {initialData ? "Save changes" : "Create"}
               </Button>
             </div>
           </form>

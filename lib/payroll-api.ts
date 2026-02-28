@@ -179,6 +179,23 @@ export async function createPayPeriod(body: PayPeriodFormValues): Promise<{ data
   return parseApiResponse<{ data: unknown }>(res, "Failed to create pay period");
 }
 
+export async function updatePayPeriod(
+  id: string,
+  body: PayPeriodFormValues
+): Promise<{ data: unknown }> {
+  const res = await fetch(`/api/payroll/pay-periods/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseApiResponse<{ data: unknown }>(res, "Failed to update pay period");
+}
+
+export async function deletePayPeriod(id: string): Promise<{ data: unknown }> {
+  const res = await fetch(`/api/payroll/pay-periods/${id}`, { method: "DELETE" });
+  return parseApiResponse<{ data: unknown }>(res, "Failed to delete pay period");
+}
+
 // --- Payroll runs ---
 
 export async function fetchPayrollRuns(
@@ -201,6 +218,11 @@ export async function createPayrollRun(body: CreatePayrollRunValues): Promise<{ 
 export async function finalizePayrollRun(id: string): Promise<{ data: unknown }> {
   const res = await fetch(`/api/payroll/payroll-runs/${id}/finalize`, { method: "POST" });
   return parseApiResponse<{ data: unknown }>(res, "Failed to finalize payroll run");
+}
+
+export async function deletePayrollRun(id: string): Promise<{ data: unknown }> {
+  const res = await fetch(`/api/payroll/payroll-runs/${id}`, { method: "DELETE" });
+  return parseApiResponse<{ data: unknown }>(res, "Failed to delete payroll run");
 }
 
 // --- Payslips ---

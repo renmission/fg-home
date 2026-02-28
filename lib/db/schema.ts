@@ -367,6 +367,8 @@ export const attendanceDays = pgTable("attendance_day", {
     .notNull()
     .references(() => attendance.id, { onDelete: "cascade" }),
   date: date("date", { mode: "string" }).notNull(),
+  clockInTime: timestamp("clock_in_time", { mode: "date" }),
+  clockOutTime: timestamp("clock_out_time", { mode: "date" }),
   present: integer("present").notNull().default(1), // 1 = present, 0 = absent
   hoursWorked: decimal("hours_worked", { precision: 5, scale: 2 }), // optional: hours worked (e.g. 8.0, 4.5)
   notes: text("notes"), // optional notes

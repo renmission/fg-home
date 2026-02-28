@@ -13,6 +13,7 @@ export const CreateEmployeeSchema = z.object({
 export type CreateEmployeeValues = z.infer<typeof CreateEmployeeSchema>;
 
 export const UpdateEmployeeSchema = z.object({
+  userId: z.string().optional().or(z.literal("")),
   name: z.string().min(1, "Name is required").optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   department: z.string().optional().or(z.literal("")),

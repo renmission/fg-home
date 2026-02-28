@@ -29,6 +29,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const visibleNavGroups = NAV_GROUPS.map((group) => {
     const isHRGroup = group.label === "Human Resources";
+    const isAdminGroup = group.label === "Administration";
+    const isViewer = user.roles?.includes(ROLES.VIEWER);
 
     // If it's the HR group, only show to Admin or HR staff
     if (isHRGroup && !isAdmin && !isHR) {
@@ -37,6 +39,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
     // If user is HR staff (non-admin), they ONLY see the HR group
     if (isHR && !isAdmin && !isHRGroup) {
+      return { label: group.label, items: [] };
+    }
+
+    // If user is a viewer, they don't see the Administration group
+    if (isAdminGroup && isViewer) {
       return { label: group.label, items: [] };
     }
 

@@ -34,11 +34,19 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return Response.json({ error: "Attendance record not found" }, { status: 404 });
   }
 
-  const [employee, period, dayRows] = await Promise.all([
+  const [employee, dayRows] = await Promise.all([
     db.select().from(employees).where(eq(employees.id, record.employeeId)).limit(1),
-    db.select().from(payPeriods).where(eq(payPeriods.id, record.payPeriodId)).limit(1),
     db.select().from(attendanceDays).where(eq(attendanceDays.attendanceId, id)),
   ]);
+
+  let period: Array<{ startDate: string; endDate: string; payDate: string }> = [];
+  if (record.payPeriodId) {
+    period = await db
+      .select()
+      .from(payPeriods)
+      .where(eq(payPeriods.id, record.payPeriodId))
+      .limit(1);
+  }
 
   const deadline = period[0] ? calculateAttendanceDeadline(period[0].payDate) : null;
 

@@ -130,7 +130,7 @@ export function AttendanceDashboard({ user }: { user: SessionUser | null }) {
   const canReadPayroll = user ? can(user, PERMISSIONS.PAYROLL_READ) : false;
   const isAdmin = user?.roles?.includes(ROLES.ADMIN) ?? false;
   const isPayrollManager = user?.roles?.includes(ROLES.PAYROLL_MANAGER) ?? false;
-  const [tab, setTab] = useState<Tab>("submit");
+  const [tab, setTab] = useState<Tab>(isAdmin || isPayrollManager ? "records" : "submit");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [payPeriodFilter, setPayPeriodFilter] = useState<string>("");
@@ -277,7 +277,10 @@ export function AttendanceDashboard({ user }: { user: SessionUser | null }) {
 
       <div className="border-b border-border overflow-x-auto">
         <div className="flex gap-0 min-w-0" role="tablist" aria-label="Attendance sections">
-          {(["submit", "records", "payslips"] as const).map((t) => (
+          {(isAdmin || isPayrollManager
+            ? (["records"] as const)
+            : (["submit", "records", "payslips"] as const)
+          ).map((t) => (
             <button
               key={t}
               type="button"
@@ -290,7 +293,13 @@ export function AttendanceDashboard({ user }: { user: SessionUser | null }) {
               }`}
               onClick={() => setTab(t)}
             >
-              {t === "submit" ? "Submit attendance" : t === "records" ? "My records" : "Payslips"}
+              {t === "records" && (isAdmin || isPayrollManager)
+                ? "Global records"
+                : t === "submit"
+                  ? "Submit attendance"
+                  : t === "records"
+                    ? "My records"
+                    : "Payslips"}
             </button>
           ))}
         </div>

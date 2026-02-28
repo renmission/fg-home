@@ -127,9 +127,9 @@ export type NavGroup = {
   items: { href: string; label: string; permission: Permission | null }[];
 };
 
-/** Standalone items rendered above the collapsible groups (no category header). */
 export const NAV_TOP_ITEMS: { href: string; label: string; permission: Permission | null }[] = [
   { href: "/dashboard", label: "Dashboard", permission: null },
+  { href: "/dashboard/personal-attendance", label: "Personal / Attendance", permission: null },
   { href: "/dashboard/reports", label: "Reports", permission: PERMISSIONS.REPORTS_READ },
 ];
 
@@ -161,7 +161,7 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: PERMISSIONS.ATTENDANCE_READ,
       },
       { href: "/dashboard/payroll", label: "Payroll", permission: PERMISSIONS.PAYROLL_READ },
-      { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.USERS_READ },
+      { href: "/dashboard/employees", label: "Employees", permission: PERMISSIONS.USERS_READ },
     ],
   },
   {
@@ -178,6 +178,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Departments",
         permission: PERMISSIONS.SETTINGS_READ,
       },
+      { href: "/dashboard/users", label: "Users", permission: PERMISSIONS.SETTINGS_READ },
     ],
   },
 ];

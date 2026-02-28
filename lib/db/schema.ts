@@ -211,6 +211,9 @@ export const employees = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "set null" })
+      .unique(),
     name: text("name").notNull(),
     email: text("email"),
     department: text("department"), // role/department
@@ -222,6 +225,7 @@ export const employees = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
   (table) => ({
+    userIdIdx: index("employee_user_id_idx").on(table.userId),
     emailIdx: index("employee_email_idx").on(table.email),
     activeIdx: index("employee_active_idx").on(table.active),
   })
@@ -341,9 +345,7 @@ export const attendance = pgTable(
     employeeId: text("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    payPeriodId: text("pay_period_id")
-      .notNull()
-      .references(() => payPeriods.id, { onDelete: "cascade" }),
+    payPeriodId: text("pay_period_id").references(() => payPeriods.id, { onDelete: "cascade" }),
     submittedAt: timestamp("submitted_at", { mode: "date" }).notNull().defaultNow(),
     submittedById: text("submitted_by_id").references(() => users.id, { onDelete: "set null" }),
     status: text("status").$type<AttendanceStatus>().notNull(), // on_time or late

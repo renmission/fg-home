@@ -99,8 +99,10 @@ export async function GET(req: NextRequest) {
   ]);
 
   const total = countResult[0]?.count ?? 0;
-  const employeeIds = [...new Set(rows.map((r) => r.employeeId))];
-  const payPeriodIds = [...new Set(rows.map((r) => r.payPeriodId))];
+  const employeeIds = [...new Set(rows.map((r) => r.employeeId).filter(Boolean))];
+  const payPeriodIds = [
+    ...new Set(rows.map((r) => r.payPeriodId).filter((id): id is string => id !== null)),
+  ];
 
   const [employeeRows, periodRows] = await Promise.all([
     employeeIds.length > 0
@@ -127,7 +129,7 @@ export async function GET(req: NextRequest) {
 
   const data = rows.map((r) => {
     const emp = employeeMap.get(r.employeeId);
-    const period = periodMap.get(r.payPeriodId);
+    const period = r.payPeriodId ? periodMap.get(r.payPeriodId) : undefined;
     const deadline = period ? calculateAttendanceDeadline(period.payDate) : null;
     return {
       id: r.id,

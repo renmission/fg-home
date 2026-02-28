@@ -25,7 +25,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const visibleNavGroups = NAV_GROUPS.map((group) => ({
     label: group.label,
-    items: group.items.filter(isVisible).map(({ href, label }) => ({ href, label })),
+    items: group.items
+      .filter(isVisible)
+      .map(({ href, label }) => ({ href, label }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   })).filter((group) => group.items.length > 0);
 
   return (

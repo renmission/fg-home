@@ -62,17 +62,20 @@ export function AdminDashboard() {
           title="Total Products"
           value={data.inventory?.totalProducts || 0}
           icon={<Package className="h-4 w-4" />}
+          href="/dashboard/inventory"
         />
         <DashboardCard
           title="Low Stock Items"
           value={data.inventory?.lowStockCount || 0}
           description="Needs attention"
           icon={<Package className="h-4 w-4" />}
+          href="/dashboard/inventory"
         />
         <DashboardCard
           title="Pending Deliveries"
           value={data.deliveries?.pending || 0}
           icon={<Truck className="h-4 w-4" />}
+          href="/dashboard/deliveries"
         />
         <DashboardCard
           title="Recent Sales"
@@ -84,6 +87,7 @@ export function AdminDashboard() {
           title="Active Users"
           value={data.users?.total || 0}
           icon={<Users className="h-4 w-4" />}
+          href="/dashboard/users"
         />
       </div>
 

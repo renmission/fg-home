@@ -68,12 +68,14 @@ export function InventoryDashboard() {
           title="Total Products"
           value={data.totalProducts || 0}
           icon={<Package className="h-4 w-4" />}
+          href="/dashboard/inventory"
         />
         <DashboardCard
           title="Low Stock Items"
           value={data.lowStockCount || 0}
           description="Below reorder level"
           icon={<AlertTriangle className="h-4 w-4 text-orange-500" />}
+          href="/dashboard/inventory"
         />
         <DashboardCard
           title="Movement Types"

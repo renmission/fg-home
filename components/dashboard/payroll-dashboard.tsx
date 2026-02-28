@@ -48,12 +48,14 @@ export function PayrollDashboard() {
           title="Active Employees"
           value={data.totalEmployees || 0}
           icon={<Users className="h-4 w-4" />}
+          href="/dashboard/employees"
         />
         <DashboardCard
           title="Draft Payslips"
           value={data.pendingPayslips || 0}
           description="Requires attention"
           icon={<FileText className="h-4 w-4" />}
+          href="/dashboard/payroll"
         />
         <DashboardCard
           title="Recent Runs"

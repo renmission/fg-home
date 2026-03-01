@@ -162,7 +162,7 @@ export async function POST(request: Request) {
         })
         .from(attendanceDays)
         .innerJoin(attendance, eq(attendance.id, attendanceDays.attendanceId))
-        .where(eq(attendanceDays.date, todayStr))
+        .where(and(eq(attendance.employeeId, employeeRecord.id), eq(attendanceDays.date, todayStr)))
         .limit(1);
 
       const todayRecord = todayRecords[0];

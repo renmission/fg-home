@@ -31,6 +31,7 @@ import {
   paymentRequiresReference,
   type PaymentMethodValue,
 } from "@/lib/pos-constants";
+import { VoidSalesCard } from "@/components/pos/void-sales-card";
 
 const SALES_QUERY_KEY = ["pos", "sales"];
 const SALE_QUERY_KEY = (id: string) => ["pos", "sale", id];
@@ -112,6 +113,10 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   const [showPaymentSection, setShowPaymentSection] = useState(false);
   const [showHeldCarts, setShowHeldCarts] = useState(false);
   const [forDelivery, setForDelivery] = useState(false);
+  const [deliveryCustomerName, setDeliveryCustomerName] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryPhone, setDeliveryPhone] = useState("");
+  const [showVoidModal, setShowVoidModal] = useState(false);
 
   const debouncedSearch = useDebouncedValue(productSearch, 300);
 
@@ -314,6 +319,16 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
 
   const handleAddToCart = (productId: string, listPrice: string | null) => {
     if (!currentSaleId || !canWrite) return;
+    // If the product is already in the cart, increment its quantity instead of adding a duplicate line
+    const existingLine = lines.find((l) => l.productId === productId);
+    if (existingLine) {
+      updateLineMutation.mutate({
+        saleId: currentSaleId,
+        lineId: existingLine.id,
+        quantity: existingLine.quantity + 1,
+      });
+      return;
+    }
     const unitPrice = listPrice != null ? Number(listPrice) : undefined;
     addLineMutation.mutate({ saleId: currentSaleId, productId, quantity: 1, unitPrice });
   };
@@ -357,6 +372,10 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
     completeMutation.mutate({
       saleId: currentSaleId,
       forDelivery: forDelivery ? true : undefined,
+      customerName:
+        forDelivery && deliveryCustomerName.trim() ? deliveryCustomerName.trim() : undefined,
+      customerAddress: forDelivery && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
+      customerPhone: forDelivery && deliveryPhone.trim() ? deliveryPhone.trim() : undefined,
     });
   };
 
@@ -364,6 +383,10 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
     setCompletedMessage(null);
     setLastCompletedSaleId(null);
     setShowPaymentSection(false);
+    setForDelivery(false);
+    setDeliveryCustomerName("");
+    setDeliveryAddress("");
+    setDeliveryPhone("");
     createSaleMutation.mutate();
   };
 
@@ -523,6 +546,7 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   <div class="name">FG Homes</div>
   <div class="meta">Official Receipt</div>
   <div class="meta">Sale #${escapeHtml(s.id.slice(0, 8))}</div>
+  <div class="meta">Ref: ${escapeHtml(s.id)}</div>
   <div class="meta">${escapeHtml(date)}</div>
 </div>
 <div class="divider"></div>
@@ -535,6 +559,7 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   <div class="totals-row"><span>Subtotal</span><span>₱${Number(s.subtotal).toFixed(2)}</span></div>
   ${discountRowHtml}
   <div class="totals-row total"><span>Total</span><span>₱${Number(s.total).toFixed(2)}</span></div>
+  ${Number(s.paymentTotal ?? 0) > Number(s.total) ? `<div class="totals-row" style="color:#16a34a;font-weight:600;"><span>Change</span><span>₱${(Number(s.paymentTotal ?? 0) - Number(s.total)).toFixed(2)}</span></div>` : ""}
 </div>
 ${paymentsSectionHtml}
 <div class="footer">
@@ -608,404 +633,426 @@ ${paymentsSectionHtml}
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[500px] gap-4">
-      {/* Items — product catalog */}
-      <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-border bg-card overflow-hidden">
-        <div className="shrink-0 border-b border-border px-4 py-3">
-          <h2 className="text-lg font-semibold text-primary">Items</h2>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <SearchIcon />
-              </span>
-              <Input
-                placeholder="Search products…"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="pl-9 h-10"
-              />
+    <>
+      <div className="flex h-[calc(100vh-8rem)] min-h-[500px] gap-4">
+        <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-border bg-card overflow-hidden">
+          <div className="shrink-0 border-b border-border px-4 py-3">
+            <h2 className="text-lg font-semibold text-primary">Items</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <SearchIcon />
+                </span>
+                <Input
+                  placeholder="Search products…"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="pl-9 h-10"
+                />
+              </div>
             </div>
-          </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setCategoryFilter("all")}
-              className={cn(
-                "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                categoryFilter === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              )}
-            >
-              All
-            </button>
-            {categories.map((cat) => (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               <button
-                key={cat}
                 type="button"
-                onClick={() => setCategoryFilter(cat)}
+                onClick={() => setCategoryFilter("all")}
                 className={cn(
                   "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                  categoryFilter === cat
+                  categoryFilter === "all"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
               >
-                {cat}
+                All
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {!currentSaleId ? (
-            <p className="text-muted-foreground text-sm">Starting new sale…</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filteredProducts.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex flex-col rounded-lg border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoryFilter(cat)}
+                  className={cn(
+                    "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                    categoryFilter === cat
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
                 >
-                  <ProductPlaceholder name={p.name} />
-                  <p className="mt-2 line-clamp-2 text-sm font-medium text-foreground">{p.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {p.quantity} {p.unit} in stock
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold text-primary">
-                    {p.listPrice != null && p.listPrice !== ""
-                      ? `₱${Number(p.listPrice).toFixed(2)}`
-                      : "—"}
-                  </p>
-                  <Button
-                    size="icon"
-                    className="mt-2 h-10 w-10 shrink-0 rounded-full self-end"
-                    disabled={!canWrite || p.archived === 1 || addLineMutation.isPending}
-                    onClick={() => handleAddToCart(p.id, p.listPrice)}
-                    aria-label={`Add ${p.name}`}
-                  >
-                    <AddIcon />
-                  </Button>
-                </div>
+                  {cat}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Current Order */}
-      <div className="flex w-full max-w-md flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden">
-        <div className="shrink-0 border-b border-border px-4 py-3">
-          <h2 className="text-lg font-semibold text-primary">Current Order</h2>
-          {sale && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              #{sale.id.slice(0, 8)} · {sale.status}
-            </p>
-          )}
-        </div>
-
-        <div className="flex-1 overflow-y-auto flex flex-col">
-          {saleLoading || !sale ? (
-            <p className="p-4 text-muted-foreground text-sm">Loading…</p>
-          ) : (
-            <>
-              <div className="flex-1 p-4 space-y-3">
-                {lines.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">
-                    Cart is empty. Add items from the left.
-                  </p>
-                ) : (
-                  lines.map((line) => {
-                    const lineTotal =
-                      line.quantity * Number(line.unitPrice) - Number(line.lineDiscountAmount ?? 0);
-                    return (
-                      <div
-                        key={line.id}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-background p-3"
-                      >
-                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-lg font-semibold text-muted-foreground">
-                          {line.productName.charAt(0)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{line.productName}</p>
-                          <p className="text-sm font-semibold text-primary">
-                            ₱{Number(line.unitPrice).toFixed(2)}
-                          </p>
-                        </div>
-                        {canWrite && isDraft ? (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-8"
-                              disabled={
-                                updateLineMutation.isPending || removeLineMutation.isPending
-                              }
-                              onClick={() => handleQuantityChange(line, -1)}
-                              aria-label="Decrease quantity"
-                            >
-                              −
-                            </Button>
-                            <span className="min-w-[2rem] text-center text-sm font-medium">
-                              {line.quantity}
-                            </span>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-8"
-                              disabled={updateLineMutation.isPending}
-                              onClick={() => handleQuantityChange(line, 1)}
-                              aria-label="Increase quantity"
-                            >
-                              +
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-sm font-medium">×{line.quantity}</span>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Summary */}
-              <div className="shrink-0 border-t border-border p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>₱{Number(sale.subtotal).toFixed(2)}</span>
-                </div>
-                {Number(sale.discountAmount) > 0 && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Discount</span>
-                    <span>
-                      −₱{Number(sale.discountAmount).toFixed(2)}
-                      {sale.discountType === "percent" ? ` (${sale.discountAmount}%)` : ""}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between font-semibold pt-2">
-                  <span>Total</span>
-                  <span className="text-primary">₱{Number(sale.total).toFixed(2)}</span>
-                </div>
-                {(sale as SaleDetail).payments?.length > 0 && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Paid</span>
-                    <span>₱{paymentTotal.toFixed(2)}</span>
-                  </div>
-                )}
-
-                {isDraft && canWrite && (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2 pt-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        placeholder="Discount"
-                        value={saleDiscountAmount}
-                        onChange={(e) => setSaleDiscountAmount(e.target.value)}
-                        className="h-9 w-24"
-                      />
-                      <select
-                        value={saleDiscountType}
-                        onChange={(e) => setSaleDiscountType(e.target.value as "percent" | "fixed")}
-                        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                      >
-                        <option value="fixed">₱</option>
-                        <option value="percent">%</option>
-                      </select>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleApplyDiscount}
-                        disabled={discountMutation.isPending}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {!currentSaleId ? (
+              <p className="text-muted-foreground text-sm">Starting new sale…</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredProducts.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex flex-col rounded-lg border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <ProductPlaceholder name={p.name} />
+                    <p className="mt-2 line-clamp-2 text-sm font-medium text-foreground">
+                      {p.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {p.quantity} {p.unit} in stock
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-primary">
+                      {p.listPrice != null && p.listPrice !== ""
+                        ? `₱${Number(p.listPrice).toFixed(2)}`
+                        : "—"}
+                    </p>
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-muted-foreground"
-                      onClick={() => setShowPaymentSection(!showPaymentSection)}
+                      size="icon"
+                      className="mt-2 h-10 w-10 shrink-0 rounded-full self-end"
+                      disabled={!canWrite || p.archived === 1 || addLineMutation.isPending}
+                      onClick={() => handleAddToCart(p.id, p.listPrice)}
+                      aria-label={`Add ${p.name}`}
                     >
-                      {showPaymentSection ? "Hide payment" : "Add payment"}
+                      <AddIcon />
                     </Button>
-                    {showPaymentSection && (
-                      <div className="space-y-3 rounded-lg border border-border p-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <select
-                            value={paymentMethod}
-                            onChange={(e) => {
-                              setPaymentMethod(e.target.value as PaymentMethodValue);
-                              setPaymentReference("");
-                            }}
-                            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                          >
-                            {PAYMENT_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <Input
-                            type="number"
-                            min={0.01}
-                            step={0.01}
-                            placeholder="Amount"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                            className="h-9 w-28"
-                          />
-                        </div>
-                        {requiresReference && (
-                          <div>
-                            <label className="text-xs font-medium text-foreground">
-                              Reference # <span className="text-destructive">*</span>
-                            </label>
-                            <Input
-                              type="text"
-                              placeholder="Transaction / reference number"
-                              value={paymentReference}
-                              onChange={(e) => setPaymentReference(e.target.value)}
-                              className="mt-1 h-9"
-                            />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Current Order */}
+        <div className="flex w-full max-w-md flex-col shrink-0 rounded-xl border border-border bg-card overflow-hidden">
+          <div className="shrink-0 border-b border-border px-4 py-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-primary">Current Order</h2>
+              {canWrite && recentCompleted.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowVoidModal(true)}
+                  className="text-xs font-medium text-destructive hover:underline"
+                >
+                  Void Sales
+                </button>
+              )}
+            </div>
+            {sale && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                #{sale.id.slice(0, 8)} · {sale.status}
+              </p>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {saleLoading || !sale ? (
+              <p className="p-4 text-muted-foreground text-sm">Loading…</p>
+            ) : (
+              <>
+                <div className="flex-1 p-4 space-y-3">
+                  {lines.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      Cart is empty. Add items from the left.
+                    </p>
+                  ) : (
+                    lines.map((line) => {
+                      const lineTotal =
+                        line.quantity * Number(line.unitPrice) -
+                        Number(line.lineDiscountAmount ?? 0);
+                      return (
+                        <div
+                          key={line.id}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-background p-3"
+                        >
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted flex items-center justify-center text-lg font-semibold text-muted-foreground">
+                            {line.productName.charAt(0)}
                           </div>
-                        )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{line.productName}</p>
+                            <p className="text-sm font-semibold text-primary">
+                              ₱{Number(line.unitPrice).toFixed(2)}
+                            </p>
+                          </div>
+                          {canWrite && isDraft ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8"
+                                disabled={
+                                  updateLineMutation.isPending || removeLineMutation.isPending
+                                }
+                                onClick={() => handleQuantityChange(line, -1)}
+                                aria-label="Decrease quantity"
+                              >
+                                −
+                              </Button>
+                              <span className="min-w-[2rem] text-center text-sm font-medium">
+                                {line.quantity}
+                              </span>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8"
+                                disabled={updateLineMutation.isPending}
+                                onClick={() => handleQuantityChange(line, 1)}
+                                aria-label="Increase quantity"
+                              >
+                                +
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-medium">×{line.quantity}</span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Summary */}
+                <div className="shrink-0 border-t border-border p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>₱{Number(sale.subtotal).toFixed(2)}</span>
+                  </div>
+                  {Number(sale.discountAmount) > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Discount</span>
+                      <span>
+                        −₱{Number(sale.discountAmount).toFixed(2)}
+                        {sale.discountType === "percent" ? ` (${sale.discountAmount}%)` : ""}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold pt-2">
+                    <span>Total</span>
+                    <span className="text-primary">₱{Number(sale.total).toFixed(2)}</span>
+                  </div>
+                  {(sale as SaleDetail).payments?.length > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Paid</span>
+                      <span>₱{paymentTotal.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {paymentTotal > total && total > 0 && (
+                    <div className="flex justify-between text-sm font-semibold text-green-600 dark:text-green-400">
+                      <span>Change</span>
+                      <span>₱{(paymentTotal - total).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {isDraft && canWrite && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          placeholder="Discount"
+                          value={saleDiscountAmount}
+                          onChange={(e) => setSaleDiscountAmount(e.target.value)}
+                          className="h-9 w-24"
+                        />
+                        <select
+                          value={saleDiscountType}
+                          onChange={(e) =>
+                            setSaleDiscountType(e.target.value as "percent" | "fixed")
+                          }
+                          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                        >
+                          <option value="fixed">₱</option>
+                          <option value="percent">%</option>
+                        </select>
                         <Button
                           size="sm"
-                          onClick={handleAddPayment}
-                          disabled={addPaymentMutation.isPending || !canAddPayment}
+                          variant="secondary"
+                          onClick={handleApplyDiscount}
+                          disabled={discountMutation.isPending}
                         >
-                          Add
+                          Apply
                         </Button>
                       </div>
-                    )}
-                  </>
-                )}
 
-                {canWrite && isDraft && (
-                  <div className="mt-3 space-y-3">
-                    {/* For Delivery checkbox */}
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={forDelivery}
-                        onChange={(e) => setForDelivery(e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                      <span className="text-sm font-medium">For Delivery</span>
-                    </label>
-
-                    {/* Info message when For Delivery is checked */}
-                    {forDelivery && (
-                      <div className="rounded-lg border border-border p-3 bg-muted/30">
-                        <p className="text-xs text-muted-foreground">
-                          A draft delivery will be created. Customer information can be added later
-                          in the Deliveries module.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
                       <Button
-                        variant="outline"
-                        className="flex-1"
-                        disabled={holdMutation.isPending || lines.length === 0}
-                        onClick={() => holdMutation.mutate(currentSaleId!)}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-muted-foreground"
+                        onClick={() => setShowPaymentSection(!showPaymentSection)}
                       >
-                        {holdMutation.isPending ? "Holding…" : "Hold"}
+                        {showPaymentSection ? "Hide payment" : "Add payment"}
                       </Button>
-                      <Button
-                        className="flex-1 h-12 text-base font-semibold"
-                        disabled={!canComplete || completeMutation.isPending}
-                        onClick={handleComplete}
-                      >
-                        {completeMutation.isPending
-                          ? "Completing…"
-                          : paymentTotal < total && total > 0
-                            ? `Complete · Add ₱${(total - paymentTotal).toFixed(2)}`
-                            : "Complete sale"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {completeMutation.isError && (
-                  <p className="text-sm text-destructive mt-2">
-                    {getErrorMessage(completeMutation.error)}
-                  </p>
-                )}
-                {canWrite && heldSales.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <button
-                      type="button"
-                      className="text-sm font-medium text-primary"
-                      onClick={() => setShowHeldCarts(!showHeldCarts)}
-                    >
-                      {showHeldCarts ? "Hide" : "Show"} held carts ({heldSales.length})
-                    </button>
-                    {showHeldCarts && (
-                      <div className="mt-2 space-y-1">
-                        {heldSales.map((s) => (
-                          <div
-                            key={s.id}
-                            className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-sm"
-                          >
-                            <span className="text-muted-foreground">
-                              #{s.id.slice(0, 8)} · ₱{Number(s.total).toFixed(2)}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7"
-                              disabled={retrieveMutation.isPending}
-                              onClick={() => retrieveMutation.mutate(s.id)}
+                      {showPaymentSection && (
+                        <div className="space-y-3 rounded-lg border border-border p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={paymentMethod}
+                              onChange={(e) => {
+                                setPaymentMethod(e.target.value as PaymentMethodValue);
+                                setPaymentReference("");
+                              }}
+                              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
                             >
-                              Retrieve
-                            </Button>
+                              {PAYMENT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              type="number"
+                              min={0.01}
+                              step={0.01}
+                              placeholder="Amount"
+                              value={paymentAmount}
+                              onChange={(e) => setPaymentAmount(e.target.value)}
+                              className="h-9 w-28"
+                            />
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {canWrite && recentCompleted.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Recent sales</p>
-                    <div className="space-y-1">
-                      {recentCompleted.map((s) => (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-sm"
-                        >
-                          <span>
-                            #{s.id.slice(0, 8)} · ₱{Number(s.total).toFixed(2)}
-                          </span>
+                          {requiresReference && (
+                            <div>
+                              <label className="text-xs font-medium text-foreground">
+                                Reference # <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                type="text"
+                                placeholder="Transaction / reference number"
+                                value={paymentReference}
+                                onChange={(e) => setPaymentReference(e.target.value)}
+                                className="mt-1 h-9"
+                              />
+                            </div>
+                          )}
                           <Button
                             size="sm"
-                            variant="ghost"
-                            className="h-7 text-destructive hover:text-destructive"
-                            disabled={voidMutation.isPending}
-                            onClick={() => {
-                              if (confirm("Void this sale? Stock will be restored.")) {
-                                voidMutation.mutate(s.id);
-                              }
-                            }}
+                            onClick={handleAddPayment}
+                            disabled={addPaymentMutation.isPending || !canAddPayment}
                           >
-                            Void
+                            Add
                           </Button>
                         </div>
-                      ))}
+                      )}
+                    </>
+                  )}
+
+                  {canWrite && isDraft && (
+                    <div className="mt-3 space-y-3">
+                      {/* For Delivery checkbox */}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={forDelivery}
+                          onChange={(e) => setForDelivery(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span className="text-sm font-medium">For Delivery</span>
+                      </label>
+
+                      {/* Delivery locator inputs */}
+                      {forDelivery && (
+                        <div className="space-y-2 rounded-lg border border-border p-3 bg-muted/30">
+                          <p className="text-xs font-medium text-muted-foreground">Delivery Info</p>
+                          <Input
+                            type="text"
+                            placeholder="Customer name"
+                            value={deliveryCustomerName}
+                            onChange={(e) => setDeliveryCustomerName(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                          <Input
+                            type="text"
+                            placeholder="Delivery address"
+                            value={deliveryAddress}
+                            onChange={(e) => setDeliveryAddress(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                          <Input
+                            type="tel"
+                            placeholder="Phone number"
+                            value={deliveryPhone}
+                            onChange={(e) => setDeliveryPhone(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          disabled={holdMutation.isPending || lines.length === 0}
+                          onClick={() => holdMutation.mutate(currentSaleId!)}
+                        >
+                          {holdMutation.isPending ? "Holding…" : "Hold"}
+                        </Button>
+                        <Button
+                          className="flex-1 h-12 text-base font-semibold"
+                          disabled={!canComplete || completeMutation.isPending}
+                          onClick={handleComplete}
+                        >
+                          {completeMutation.isPending
+                            ? "Completing…"
+                            : paymentTotal < total && total > 0
+                              ? `Complete · Add ₱${(total - paymentTotal).toFixed(2)}`
+                              : "Complete sale"}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+                  )}
+                  {completeMutation.isError && (
+                    <p className="text-sm text-destructive mt-2">
+                      {getErrorMessage(completeMutation.error)}
+                    </p>
+                  )}
+                  {canWrite && heldSales.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-primary"
+                        onClick={() => setShowHeldCarts(!showHeldCarts)}
+                      >
+                        {showHeldCarts ? "Hide" : "Show"} held carts ({heldSales.length})
+                      </button>
+                      {showHeldCarts && (
+                        <div className="mt-2 space-y-1">
+                          {heldSales.map((s) => (
+                            <div
+                              key={s.id}
+                              className="flex items-center justify-between rounded border border-border px-2 py-1.5 text-sm"
+                            >
+                              <span className="text-muted-foreground">
+                                #{s.id.slice(0, 8)} · ₱{Number(s.total).toFixed(2)}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7"
+                                disabled={retrieveMutation.isPending}
+                                onClick={() => retrieveMutation.mutate(s.id)}
+                              >
+                                Retrieve
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {showVoidModal && (
+        <VoidSalesCard
+          sales={recentCompleted}
+          isPending={voidMutation.isPending}
+          onVoid={(id) => {
+            voidMutation.mutate(id);
+            setShowVoidModal(false);
+          }}
+          onClose={() => setShowVoidModal(false)}
+        />
+      )}
+    </>
   );
 }

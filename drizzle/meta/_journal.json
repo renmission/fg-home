@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1770644804169,
-      "tag": "0000_left_thanos",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1770645572099,
-      "tag": "0001_cute_the_liberteens",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1772297862332,
-      "tag": "0002_solid_true_believers",
+      "when": 1772640180011,
+      "tag": "0000_sad_yellow_claw",
       "breakpoints": true
     }
   ]

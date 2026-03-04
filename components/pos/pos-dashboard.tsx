@@ -18,10 +18,15 @@ import {
   fetchSales,
   type SaleDetail,
   type SaleLineItem,
+  fetchPosSession,
+  openPosSession,
+  closePosSession,
+  type PosSession,
 } from "@/lib/pos-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getErrorMessage } from "@/lib/errors";
 import { can, type SessionUser } from "@/lib/auth/permissions";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -117,6 +122,16 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryPhone, setDeliveryPhone] = useState("");
   const [showVoidModal, setShowVoidModal] = useState(false);
+  const [startingCash, setStartingCash] = useState("");
+  const [showCloseRegister, setShowCloseRegister] = useState(false);
+  const [actualEndingCash, setActualEndingCash] = useState("");
+
+  const { data: sessionData, isLoading: sessionLoading } = useQuery({
+    queryKey: ["pos", "session"],
+    queryFn: fetchPosSession,
+    enabled: canWrite,
+  });
+  const posSession = sessionData?.data;
 
   const debouncedSearch = useDebouncedValue(productSearch, 300);
 
@@ -307,6 +322,32 @@ export function PosDashboard({ user }: { user: SessionUser | null }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SALES_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+    },
+  });
+
+  const openSessionMutation = useMutation({
+    mutationFn: openPosSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pos", "session"] });
+      setStartingCash("");
+    },
+  });
+
+  const closeSessionMutation = useMutation({
+    mutationFn: closePosSession,
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["pos", "session"] });
+      setShowCloseRegister(false);
+      setActualEndingCash("");
+
+      const s = Number(res.data.shortage || 0);
+      if (s < 0) {
+        alert("Register closed with a shortage of ₱" + Math.abs(s).toFixed(2));
+      } else if (s > 0) {
+        alert("Register closed with an overage of ₱" + s.toFixed(2));
+      } else {
+        alert("Register closed perfectly matched!");
+      }
     },
   });
 
@@ -632,6 +673,38 @@ ${paymentsSectionHtml}
     );
   }
 
+  if (canWrite && !sessionLoading && !posSession) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>Open Register</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Starting Cash (₱)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={startingCash}
+                onChange={(e) => setStartingCash(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={openSessionMutation.isPending || !startingCash}
+              onClick={() => openSessionMutation.mutate(Number(startingCash))}
+            >
+              {openSessionMutation.isPending ? "Opening..." : "Open Register"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex h-[calc(100vh-8rem)] min-h-[500px] gap-4">
@@ -724,15 +797,26 @@ ${paymentsSectionHtml}
           <div className="shrink-0 border-b border-border px-4 py-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-primary">Current Order</h2>
-              {canWrite && recentCompleted.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowVoidModal(true)}
-                  className="text-xs font-medium text-destructive hover:underline"
-                >
-                  Void Sales
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {canWrite && recentCompleted.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowVoidModal(true)}
+                    className="text-xs font-medium text-destructive hover:underline"
+                  >
+                    Void Sales
+                  </button>
+                )}
+                {canWrite && posSession && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCloseRegister(true)}
+                    className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    Close Register
+                  </button>
+                )}
+              </div>
             </div>
             {sale && (
               <p className="text-xs text-muted-foreground mt-0.5">

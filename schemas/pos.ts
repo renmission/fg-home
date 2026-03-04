@@ -74,3 +74,17 @@ export const addPaymentSchema = z
   );
 
 export type AddPaymentBody = z.infer<typeof addPaymentSchema>;
+
+/** Open POS session (Shift) */
+export const openSessionSchema = z.object({
+  startingCash: z.coerce.number().min(0, "Starting cash cannot be negative"),
+});
+
+export type OpenSessionBody = z.infer<typeof openSessionSchema>;
+
+/** Close POS session (Shift) */
+export const closeSessionSchema = z.object({
+  actualEndingCash: z.coerce.number().min(0, "Ending cash cannot be negative"),
+});
+
+export type CloseSessionBody = z.infer<typeof closeSessionSchema>;

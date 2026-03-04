@@ -8,7 +8,6 @@ export const PAYMENT_OPTIONS = [
   { value: "gcash", label: "GCash" },
   { value: "google_pay", label: "Google Pay" },
   { value: "paymaya", label: "PayMaya" },
-  { value: "card", label: "Card" },
   { value: "other", label: "Other" },
 ] as const;
 

@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(products)
+      .leftJoin(stockLevels, eq(products.id, stockLevels.productId))
       .where(where),
   ]);
 

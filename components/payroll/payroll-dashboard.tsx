@@ -488,6 +488,17 @@ export function PayrollDashboard({ user }: { user: SessionUser | null }) {
                             </TableCell>
                             {canWrite && (
                               <TableCell className="whitespace-nowrap flex gap-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPayslipsRunId(r.id);
+                                    setPayslipsPage(1);
+                                    setTab("payslips");
+                                  }}
+                                >
+                                  View Employees
+                                </Button>
                                 {r.status === "draft" && (
                                   <>
                                     <Button

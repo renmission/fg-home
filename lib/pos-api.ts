@@ -189,3 +189,38 @@ export async function voidSale(saleId: string): Promise<{ data: SaleListItem }> 
   });
   return parseApiResponse(res, "Failed to void sale");
 }
+
+export type PosSession = {
+  id: string;
+  userId: string;
+  status: "open" | "closed";
+  startingCash: string;
+  actualEndingCash: string | null;
+  expectedEndingCash: string | null;
+  shortage: string | null;
+  openedAt: string;
+  closedAt: string | null;
+};
+
+export async function fetchPosSession(): Promise<{ data: PosSession | null }> {
+  const res = await fetch("/api/pos/sessions");
+  return parseApiResponse(res, "Failed to load session");
+}
+
+export async function openPosSession(startingCash: number): Promise<{ data: PosSession }> {
+  const res = await fetch("/api/pos/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ startingCash }),
+  });
+  return parseApiResponse(res, "Failed to open register");
+}
+
+export async function closePosSession(actualEndingCash: number): Promise<{ data: PosSession }> {
+  const res = await fetch("/api/pos/sessions/close", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actualEndingCash }),
+  });
+  return parseApiResponse(res, "Failed to close register");
+}

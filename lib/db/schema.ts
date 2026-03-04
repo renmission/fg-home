@@ -497,6 +497,35 @@ export type DiscountType = (typeof discountTypes)[number];
 export const paymentMethods = ["cash", "card", "other", "gcash", "google_pay", "paymaya"] as const;
 export type PaymentMethod = (typeof paymentMethods)[number];
 
+export const posSessionStatuses = ["open", "closed"] as const;
+export type PosSessionStatus = (typeof posSessionStatuses)[number];
+
+/** POS Session / Shift tracking. Tracks opening and closing amounts for a specific cashier. */
+export const posSessions = pgTable(
+  "pos_session",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").$type<PosSessionStatus>().notNull().default("open"),
+    startingCash: decimal("starting_cash", { precision: 12, scale: 2 }).notNull(),
+    actualEndingCash: decimal("actual_ending_cash", { precision: 12, scale: 2 }),
+    expectedEndingCash: decimal("expected_ending_cash", { precision: 12, scale: 2 }),
+    shortage: decimal("shortage", { precision: 12, scale: 2 }),
+    openedAt: timestamp("opened_at", { mode: "date" }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index("pos_session_user_id_idx").on(table.userId),
+    statusIdx: index("pos_session_status_idx").on(table.status),
+  })
+);
+
 /** Sale (transaction). draft/held = cart; completed = finalized; voided = cancelled. */
 export const sales = pgTable(
   "sale",

@@ -358,14 +358,14 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <colgroup>
-                      <col style={{ width: canWrite ? "24%" : "28%" }} /> {/* Name */}
-                      <col style={{ width: canWrite ? "13%" : "15%" }} /> {/* SKU */}
-                      <col style={{ width: canWrite ? "15%" : "17%" }} /> {/* Category */}
-                      <col style={{ width: canWrite ? "10%" : "11%" }} /> {/* Quantity */}
-                      <col style={{ width: canWrite ? "8%" : "8%" }} /> {/* Unit */}
-                      <col style={{ width: canWrite ? "12%" : "13%" }} /> {/* Price */}
-                      <col style={{ width: canWrite ? "10%" : "11%" }} /> {/* Reorder */}
-                      {canWrite && <col style={{ width: "8%" }} />} {/* Actions */}
+                      <col style={{ width: canWrite ? "24%" : "28%" }} />
+                      <col style={{ width: canWrite ? "13%" : "15%" }} />
+                      <col style={{ width: canWrite ? "15%" : "17%" }} />
+                      <col style={{ width: canWrite ? "10%" : "11%" }} />
+                      <col style={{ width: canWrite ? "8%" : "8%" }} />
+                      <col style={{ width: canWrite ? "12%" : "13%" }} />
+                      <col style={{ width: canWrite ? "10%" : "11%" }} />
+                      {canWrite && <col style={{ width: "8%" }} />}
                     </colgroup>
                     <TableHeader>
                       <TableRow>

@@ -5,7 +5,7 @@ import { getSessionOr401, requirePermission } from "@/lib/api-auth";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { withRouteErrorHandling } from "@/lib/errors";
 import { productsListQuerySchema, productSchema } from "@/schemas/inventory";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql, lte, gt } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const { user, response } = await getSessionOr401();
@@ -16,7 +16,16 @@ export async function GET(req: NextRequest) {
   const parsed = productsListQuerySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   const q = parsed.success
     ? parsed.data
-    : { page: 1, limit: 20, sortBy: "name" as const, sortOrder: "asc" as const };
+    : {
+        page: 1,
+        limit: 20,
+        sortBy: "name" as const,
+        sortOrder: "asc" as const,
+        search: undefined,
+        category: undefined,
+        archived: undefined,
+        stockStatus: "all" as const,
+      };
 
   const page = q.page ?? 1;
   const limit = q.limit ?? 20;
@@ -34,13 +43,25 @@ export async function GET(req: NextRequest) {
           ? q.sortOrder === "desc"
             ? desc(products.category)
             : asc(products.category)
-          : q.sortBy === "reorderLevel"
+          : q.sortBy === "quantity"
             ? q.sortOrder === "desc"
-              ? desc(products.reorderLevel)
-              : asc(products.reorderLevel)
-            : q.sortOrder === "desc"
-              ? desc(products.createdAt)
-              : asc(products.createdAt);
+              ? desc(stockLevels.quantity)
+              : asc(stockLevels.quantity)
+            : q.sortBy === "unit"
+              ? q.sortOrder === "desc"
+                ? desc(products.unit)
+                : asc(products.unit)
+              : q.sortBy === "listPrice"
+                ? q.sortOrder === "desc"
+                  ? desc(products.listPrice)
+                  : asc(products.listPrice)
+                : q.sortBy === "reorderLevel"
+                  ? q.sortOrder === "desc"
+                    ? desc(products.reorderLevel)
+                    : asc(products.reorderLevel)
+                  : q.sortOrder === "desc"
+                    ? desc(products.createdAt)
+                    : asc(products.createdAt);
 
   const conditions = [];
   if (q.search?.trim()) {
@@ -59,6 +80,11 @@ export async function GET(req: NextRequest) {
     conditions.push(eq(products.archived, 1));
   } else if (q.archived === false) {
     conditions.push(eq(products.archived, 0));
+  }
+  if (q.stockStatus === "low_stock") {
+    conditions.push(
+      and(lte(stockLevels.quantity, products.reorderLevel), gt(products.reorderLevel, 0))!
+    );
   }
   const where = conditions.length ? and(...conditions) : undefined;
 

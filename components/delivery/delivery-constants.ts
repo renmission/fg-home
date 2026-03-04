@@ -5,7 +5,7 @@
 export const DELIVERY_STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
   created: "Created",
-  picked: "Picked",
+  picked: "Picked up",
   in_transit: "In Transit",
   out_for_delivery: "Out for Delivery",
   delivered: "Delivered",

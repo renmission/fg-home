@@ -131,7 +131,11 @@ export function DeliveryCard({
           ) : (
             <span className="truncate max-w-[140px] text-muted-foreground italic">Unassigned</span>
           )}
-          <span>{new Date(delivery.createdAt).toLocaleDateString()}</span>
+          <span>
+            {new Date(delivery.createdAt).toLocaleDateString()}
+            {delivery.status === "in_transit" &&
+              ` ${new Date(delivery.updatedAt).toLocaleTimeString()}`}
+          </span>
         </div>
 
         {/* Mobile Action Buttons */}

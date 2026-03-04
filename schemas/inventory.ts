@@ -39,8 +39,9 @@ export const productsListQuerySchema = z.object({
     .transform((v) =>
       v === "1" || v === "true" ? true : v === "0" || v === "false" ? false : undefined
     ),
+  stockStatus: z.enum(["all", "low_stock"]).optional().default("all"),
   sortBy: z
-    .enum(["name", "sku", "category", "reorderLevel", "createdAt"])
+    .enum(["name", "sku", "category", "quantity", "unit", "listPrice", "reorderLevel", "createdAt"])
     .optional()
     .default("name"),
   sortOrder: z.enum(["asc", "desc"]).optional().default("asc"),

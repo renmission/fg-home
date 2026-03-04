@@ -33,7 +33,15 @@ const MOVEMENTS_QUERY_KEY = ["inventory", "movements"];
 
 type Tab = "products" | "movements";
 
-type ProductSortBy = "name" | "sku" | "category" | "reorderLevel" | "createdAt";
+type ProductSortBy =
+  | "name"
+  | "sku"
+  | "category"
+  | "quantity"
+  | "unit"
+  | "listPrice"
+  | "reorderLevel"
+  | "createdAt";
 type MovementSortBy = "createdAt" | "type" | "quantity" | "productName";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
@@ -75,6 +83,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
   const [productSortBy, setProductSortBy] = useState<ProductSortBy>("name");
   const [productSortOrder, setProductSortOrder] = useState<"asc" | "desc">("asc");
   const [productArchived, setProductArchived] = useState<"all" | "active" | "archived">("active");
+  const [productStockStatus, setProductStockStatus] = useState<"all" | "low_stock">("all");
   const [productCategory, setProductCategory] = useState("");
   const [movementSearch, setMovementSearch] = useState("");
   const [movementPage, setMovementPage] = useState(1);
@@ -102,6 +111,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
         archived:
           productArchived === "archived" ? true : productArchived === "active" ? false : undefined,
         category: productCategory.trim() || undefined,
+        stockStatus: productStockStatus,
       },
     ],
     queryFn: () =>
@@ -114,6 +124,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
         archived:
           productArchived === "archived" ? true : productArchived === "active" ? false : undefined,
         category: productCategory.trim() || undefined,
+        stockStatus: productStockStatus,
       }),
   });
 
@@ -305,6 +316,18 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                     <option value="all">All</option>
                   </select>
                   <select
+                    className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[8rem] sm:min-h-0"
+                    value={productStockStatus}
+                    onChange={(e) => {
+                      setProductStockStatus(e.target.value as "all" | "low_stock");
+                      setProductPage(1);
+                    }}
+                    aria-label="Filter by stock status"
+                  >
+                    <option value="all">All stock</option>
+                    <option value="low_stock">Low stock only</option>
+                  </select>
+                  <select
                     className="input-select w-full min-h-11 touch-manipulation sm:w-auto sm:min-w-[10rem] sm:min-h-0"
                     value={productCategory}
                     onChange={(e) => {
@@ -335,14 +358,14 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                 <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <colgroup>
-                      <col style={{ width: canWrite ? "20%" : "24%" }} />
-                      <col style={{ width: canWrite ? "12%" : "14%" }} />
-                      <col style={{ width: canWrite ? "14%" : "16%" }} />
-                      <col style={{ width: canWrite ? "7%" : "8%" }} />
-                      <col style={{ width: canWrite ? "10%" : "11%" }} />
-                      <col style={{ width: canWrite ? "10%" : "11%" }} />
-                      <col style={{ width: canWrite ? "10%" : "11%" }} />
-                      {canWrite && <col style={{ width: "8%" }} />}
+                      <col style={{ width: canWrite ? "24%" : "28%" }} /> {/* Name */}
+                      <col style={{ width: canWrite ? "13%" : "15%" }} /> {/* SKU */}
+                      <col style={{ width: canWrite ? "15%" : "17%" }} /> {/* Category */}
+                      <col style={{ width: canWrite ? "10%" : "11%" }} /> {/* Quantity */}
+                      <col style={{ width: canWrite ? "8%" : "8%" }} /> {/* Unit */}
+                      <col style={{ width: canWrite ? "12%" : "13%" }} /> {/* Price */}
+                      <col style={{ width: canWrite ? "10%" : "11%" }} /> {/* Reorder */}
+                      {canWrite && <col style={{ width: "8%" }} />} {/* Actions */}
                     </colgroup>
                     <TableHeader>
                       <TableRow>
@@ -373,10 +396,34 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             onSort={() => handleProductSort("category")}
                           />
                         </TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead className="text-right">Price</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">
+                        <TableHead>
+                          <SortableHeader
+                            label="Quantity"
+                            currentSort={productSortBy}
+                            sortKey="quantity"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("quantity")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Unit"
+                            currentSort={productSortBy}
+                            sortKey="unit"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("unit")}
+                          />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            label="Price"
+                            currentSort={productSortBy}
+                            sortKey="listPrice"
+                            order={productSortOrder}
+                            onSort={() => handleProductSort("listPrice")}
+                          />
+                        </TableHead>
+                        <TableHead>
                           <SortableHeader
                             label="Reorder"
                             currentSort={productSortBy}
@@ -406,13 +453,7 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                             <TableCell className="font-medium">{p.name}</TableCell>
                             <TableCell>{p.sku}</TableCell>
                             <TableCell>{p.category ?? "—"}</TableCell>
-                            <TableCell>{p.unit}</TableCell>
-                            <TableCell className="text-right">
-                              {p.listPrice != null && p.listPrice !== ""
-                                ? `₱${Number(p.listPrice).toFixed(2)}`
-                                : "—"}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell>
                               <span
                                 className={
                                   p.lowStock ? "font-medium text-amber-600 dark:text-amber-400" : ""
@@ -421,7 +462,13 @@ export function InventoryDashboard({ user }: { user: SessionUser | null }) {
                                 {p.quantity}
                               </span>
                             </TableCell>
-                            <TableCell className="text-right">{p.reorderLevel}</TableCell>
+                            <TableCell>{p.unit}</TableCell>
+                            <TableCell>
+                              {p.listPrice != null && p.listPrice !== ""
+                                ? `₱${Number(p.listPrice).toFixed(2)}`
+                                : "—"}
+                            </TableCell>
+                            <TableCell>{p.reorderLevel}</TableCell>
                             {canWrite && (
                               <TableCell className="whitespace-nowrap px-2 text-center">
                                 <ProductRowActions
